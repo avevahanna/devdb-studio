@@ -1,0 +1,46 @@
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="conn">
+    <div class="conn__label">Connection string</div>
+    <div class="conn__row">
+        <code class="conn__value">@Value</code>
+        <button type="button" class="btn btn-sm" @onclick="ToggleAsync" title="@(_reveal ? "Hide password" : "Show password")">@(_reveal ? "Hide" : "Reveal")</button>
+        <button type="button" class="btn btn-sm @(_state == CopyState.Copied ? "btn-copied" : "")" @onclick="CopyAsync">
+            @(_state switch { CopyState.Copied => "Copied ✓", CopyState.Failed => "Copy failed", _ => "Copy" })
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Func<bool, string> Build { get; set; } = _ => "";
+
+    private enum CopyState { Idle, Copied, Failed }
+    private bool _reveal;
+    private CopyState _state;
+    private CancellationTokenSource? _reset;
+
+    private string Value => Build(!_reveal);
+
+    public void Dispose() => _reset?.Cancel();
+
+    private Task ToggleAsync() { _reveal = !_reveal; return Task.CompletedTask; }
+
+    // Always copies the real password, even while it is masked on screen.
+    private async Task CopyAsync()
+    {
+        try { _state = await JS.InvokeAsync<bool>("dbServe.copyText", Build(false)) ? CopyState.Copied : CopyState.Failed; }
+        catch { _state = CopyState.Failed; }
+
+        _reset?.Cancel();
+        _reset = new CancellationTokenSource();
+        var token = _reset.Token;
+        try
+        {
+            StateHasChanged();
+            await Task.Delay(2000, token);
+            _state = CopyState.Idle;
+        }
+        catch (OperationCanceledException) { }
+    }
+}

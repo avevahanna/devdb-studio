@@ -1,0 +1,59 @@
+﻿@using DbServeApp.Services.Dbms
+
+<div class="result">
+    @if (_blocks.Count > 0)
+    {
+        <div class="seg result__bar">
+            <button type="button" class="seg__btn @(!_raw ? "seg__btn--on" : "")" @onclick="() => _raw = false">Table</button>
+            <button type="button" class="seg__btn @(_raw ? "seg__btn--on" : "")" @onclick="() => _raw = true">Raw</button>
+        </div>
+    }
+    @if (_raw)
+    {
+        <pre class="logs logs--nowrap">@Output</pre>
+    }
+    else
+    {
+        @foreach (var b in _blocks)
+        {
+            @if (b.Table is { } t)
+            {
+                <div class="grid-wrap">
+                    <table class="grid">
+                        <thead><tr><th class="grid__n">#</th>@foreach (var c in t.Columns) { <th>@c</th> }</tr></thead>
+                        <tbody>
+                            @for (var r = 0; r < t.Rows.Count; r++)
+                            {
+                                <tr>
+                                    <td class="grid__n">@(r + 1)</td>
+                                    @foreach (var v in t.Rows[r]) { <td class="@(v == "NULL" ? "grid__null" : null)">@v</td> }
+                                </tr>
+                            }
+                            @if (t.Rows.Count == 0) { <tr><td colspan="@(t.Columns.Count + 1)" class="muted">No rows.</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+                @if (t.Footer is not null) { <div class="grid__footer">@t.Footer</div> }
+            }
+            else
+            {
+                <pre class="logs logs--nowrap result__text">@b.Text</pre>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Output { get; set; } = "";
+
+    private IReadOnlyList<ResultBlock> _blocks = [];
+    private string? _parsedFor;
+    private bool _raw;
+
+    protected override void OnParametersSet()
+    {
+        if (_parsedFor == Output) return;
+        _parsedFor = Output;
+        _blocks = SqlcmdOutputParser.Parse(Output);
+    }
+}

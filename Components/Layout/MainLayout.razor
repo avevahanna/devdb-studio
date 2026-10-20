@@ -1,0 +1,24 @@
+﻿@inherits LayoutComponentBase
+
+<header class="app-bar">
+    <span class="app-bar__logo">DB</span>
+    <span class="app-bar__title">DB Serve</span>
+    <span class="app-bar__sub">Database servers on WSL Docker</span>
+    <nav class="app-bar__nav">
+        <NavLink href="setup">Setup</NavLink>
+        <NavLink href="instances">Instances</NavLink>
+        <NavLink href="query">Query</NavLink>
+        <NavLink href="tables">Tables</NavLink>
+        <NavLink href="status">Status</NavLink>
+    </nav>
+</header>
+
+<main class="app-content">
+    @Body
+</main>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

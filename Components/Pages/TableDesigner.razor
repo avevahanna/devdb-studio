@@ -1,0 +1,272 @@
+﻿@page "/tables"
+@using DbServeApp.Services.Dbms
+@implements IDisposable
+@inject IInstanceManager Manager
+@inject IJSRuntime JS
+
+<PageTitle>Table designer</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Table designer</h1>
+        <p>Design a table visually and create it with a generated T-SQL script.</p>
+    </div>
+</div>
+
+@if (_instances is null)
+{
+    <div class="card"><div class="card__note" style="padding-top:14px">Loading instances…</div></div>
+}
+else if (_instances.Count == 0)
+{
+    <div class="card"><div class="card__note" style="padding-top:14px">No instances yet. <a href="/instances/create">Create one</a> first.</div></div>
+}
+else
+{
+    <div class="card">
+        <div class="card__body form form--wide">
+            <div class="form-row">
+                <label class="field">Instance
+                    <select @bind="_selected" disabled="@_busy">
+                        @foreach (var i in _instances)
+                        {
+                            <option value="@i.Id">@i.Name — @i.Status (port @i.HostPort)</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">Database
+                    <input type="text" @bind="_database" disabled="@_busy" />
+                </label>
+                <label class="field">Schema
+                    <input type="text" @bind="_schema" disabled="@_busy" />
+                </label>
+                <label class="field">Table name
+                    <input type="text" @bind="_table" @bind:event="oninput" maxlength="128" placeholder="e.g. Customers" disabled="@_busy" />
+                </label>
+            </div>
+            @if (SelectedInstance is { } si)
+            {
+                <div class="inline-info">
+                    <DbmsBadge Key="@si.DbmsKey" DisplayName="@Manager.GetProvider(si.DbmsKey)?.DisplayName" Tag="@si.ImageTag" />
+                    @if (si.Status != InstanceStatus.Running) { <span class="muted">Instance is not running — start it before creating the table.</span> }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <span class="card__title">Columns</span>
+            <button class="btn btn-sm" @onclick="AddIdColumn" disabled="@_busy">+ Id column</button>
+            <button class="btn btn-sm btn-primary" @onclick="AddColumn" disabled="@_busy">+ Add column</button>
+        </div>
+        <div class="card__body" style="overflow-x:auto">
+            <table class="table designer">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>Type</th><th>Length / Precision</th>
+                        <th class="c">Null</th><th class="c">PK</th><th class="c">Identity</th>
+                        <th>Default</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var n = 0; n < _columns.Count; n++)
+                    {
+                        var idx = n;
+                        var c = _columns[n];
+                        <tr>
+                            <td><input type="text" @bind="c.Name" @bind:event="oninput" placeholder="column_name" disabled="@_busy" /></td>
+                            <td>
+                                <select value="@c.Type" @onchange="e => TypeChanged(c, e.Value?.ToString())" disabled="@_busy">
+                                    @foreach (var t in MssqlTableScript.Types) { <option value="@t">@t</option> }
+                                </select>
+                            </td>
+                            <td>
+                                @if (MssqlTableScript.UsesLength(c.Type))
+                                {
+                                    <input type="number" class="num" @bind="c.Length" min="1" max="8000" placeholder="MAX" disabled="@_busy" />
+                                }
+                                else if (MssqlTableScript.UsesPrecision(c.Type))
+                                {
+                                    <input type="number" class="num" @bind="c.Precision" min="1" max="38" title="Precision" disabled="@_busy" />
+                                    <input type="number" class="num" @bind="c.Scale" min="0" max="38" title="Scale" disabled="@_busy" />
+                                }
+                                else { <span class="muted">—</span> }
+                            </td>
+                            <td class="c"><input type="checkbox" @bind="c.Nullable" disabled="@(_busy || c.PrimaryKey || c.Identity)" /></td>
+                            <td class="c"><input type="checkbox" checked="@c.PrimaryKey" @onchange="e => PkChanged(c, (bool)(e.Value ?? false))" disabled="@_busy" /></td>
+                            <td class="c"><input type="checkbox" checked="@c.Identity" @onchange="e => IdentityChanged(c, (bool)(e.Value ?? false))" disabled="@(_busy || !MssqlTableScript.CanIdentity(c.Type))" /></td>
+                            <td><input type="text" @bind="c.Default" @bind:event="oninput" placeholder="e.g. 0 or GETDATE()" disabled="@(_busy || c.Identity)" /></td>
+                            <td class="actions">
+                                <button class="btn btn-sm" title="Move up" disabled="@(_busy || idx == 0)" @onclick="() => Move(idx, -1)">↑</button>
+                                <button class="btn btn-sm" title="Move down" disabled="@(_busy || idx == _columns.Count - 1)" @onclick="() => Move(idx, 1)">↓</button>
+                                <button class="btn btn-sm btn-outline-danger" title="Remove" disabled="@_busy" @onclick="() => _columns.RemoveAt(idx)">✕</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_columns.Count == 0) { <p class="muted">No columns yet. Add one to get started.</p> }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <span class="card__title">Generated script</span>
+            <button class="btn btn-sm" @onclick="CopyScriptAsync">@(_copied ? "Copied ✓" : "Copy")</button>
+        </div>
+        <div class="card__body">
+            @if (_errors.Count > 0)
+            {
+                <ul class="hint hint--err" style="margin-top:12px">@foreach (var e in _errors) { <li>@e</li> }</ul>
+            }
+            <pre class="logs">@_script</pre>
+            <div class="toolbar" style="margin-top:16px">
+                <button class="btn btn-primary" @onclick="CreateAsync" disabled="@(_busy || _errors.Count > 0 || SelectedInstance?.Status != InstanceStatus.Running)">
+                    @if (_busy) { <span class="spinner"></span> }
+                    Create table
+                </button>
+                <button class="btn btn-sm" @onclick="ListTablesAsync" disabled="@(_busy || SelectedInstance?.Status != InstanceStatus.Running)">List existing tables</button>
+                <button class="btn btn-sm" @onclick="RefreshAsync" disabled="@(_busy || _refreshing)">Re-run status</button>
+            </div>
+        </div>
+    </div>
+
+    @if (_result is not null)
+    {
+        <div class="card card--@(_result.IsSuccess ? "pass" : "fail")">
+            <div class="card__head">
+                <span class="card__title">@_resultTitle</span>
+                <span class="chip @(_result.IsSuccess ? "chip--pass" : "chip--fail")">@(_result.IsSuccess ? "Success" : "Failed")</span>
+                <span class="muted">@_result.Elapsed.TotalSeconds.ToString("0.00")s</span>
+            </div>
+            <div class="card__body">
+                @if (!string.IsNullOrWhiteSpace(_result.StdOut)) { <ResultView Output="@_result.StdOut" /> }
+                @if (!string.IsNullOrWhiteSpace(_result.StdErr)) { <h4>Errors</h4><pre class="logs">@_result.StdErr</pre> }
+                @if (_result.IsSuccess && string.IsNullOrWhiteSpace(_result.StdOut)) { <p class="muted">Done — no output.</p> }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "instance")] public Guid? InstanceId { get; set; }
+
+    private IReadOnlyList<DbInstance>? _instances;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly List<ColumnDef> _columns = [];
+    private Guid _selected;
+    private string _database = "master", _schema = "dbo", _table = "";
+    private bool _busy, _refreshing, _copied;
+    private QueryResult? _result;
+    private string _resultTitle = "";
+    private string _script = "";
+    private IReadOnlyList<string> _errors = [];
+
+    private DbInstance? SelectedInstance => _instances?.FirstOrDefault(i => i.Id == _selected);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _instances = await Manager.GetAllAsync(_cts.Token);
+        _selected = _instances.FirstOrDefault(i => i.Id == InstanceId)?.Id
+            ?? _instances.FirstOrDefault(i => i.Status == InstanceStatus.Running)?.Id
+            ?? _instances.FirstOrDefault()?.Id ?? Guid.Empty;
+        _database = SelectedInstance?.DatabaseName ?? "master";
+        AddIdColumn();
+        await RefreshAsync();
+    }
+
+    protected override bool ShouldRender() { Rebuild(); return true; }
+
+    private void Rebuild()
+    {
+        var def = new TableDef(_schema.Trim(), _table.Trim(), _columns);
+        _errors = MssqlTableScript.Validate(def);
+        var use = string.IsNullOrWhiteSpace(_database) || _database == SelectedInstance?.DatabaseName ? null : _database.Trim();
+        _script = string.IsNullOrWhiteSpace(_table) || _columns.Count == 0
+            ? "-- Enter a table name and add columns to see the script."
+            : MssqlTableScript.Build(def, use);
+    }
+
+    private void AddColumn() => _columns.Add(new ColumnDef { Name = "", Type = "nvarchar", Length = 100 });
+
+    private void AddIdColumn() =>
+        _columns.Insert(0, new ColumnDef { Name = "Id", Type = "int", Nullable = false, PrimaryKey = true, Identity = true });
+
+    private void TypeChanged(ColumnDef c, string? type)
+    {
+        c.Type = type ?? "int";
+        if (MssqlTableScript.UsesLength(c.Type) && c.Length is null) c.Length = 100;
+        if (!MssqlTableScript.CanIdentity(c.Type)) c.Identity = false;
+        if (c.Type == "decimal") { c.Precision ??= 18; c.Scale ??= 2; }
+    }
+
+    private static void PkChanged(ColumnDef c, bool v)
+    {
+        c.PrimaryKey = v;
+        if (v) c.Nullable = false;
+    }
+
+    private static void IdentityChanged(ColumnDef c, bool v)
+    {
+        c.Identity = v;
+        if (v) { c.Nullable = false; c.Default = ""; if (c.Type == "decimal") c.Scale = 0; }
+    }
+
+    private void Move(int idx, int delta)
+    {
+        var to = idx + delta;
+        if (to < 0 || to >= _columns.Count) return;
+        (_columns[idx], _columns[to]) = (_columns[to], _columns[idx]);
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        try { _instances = (await Manager.RefreshStatusAsync(_cts.Token)).Instances; }
+        catch (OperationCanceledException) { }
+        finally { _refreshing = false; }
+    }
+
+    private async Task CopyScriptAsync()
+    {
+        try { _copied = await JS.InvokeAsync<bool>("dbServe.copyText", _script); }
+        catch { _copied = false; }
+        StateHasChanged();
+        try { await Task.Delay(2000, _cts.Token); } catch (OperationCanceledException) { return; }
+        _copied = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        Rebuild();
+        if (_busy || _errors.Count > 0 || SelectedInstance is null) return;
+        _resultTitle = $"Create {_schema}.{_table}";
+        await RunSqlAsync(_script);
+    }
+
+    private async Task ListTablesAsync()
+    {
+        if (_busy || SelectedInstance is null) return;
+        _resultTitle = "Existing tables";
+        var use = string.IsNullOrWhiteSpace(_database) ? "" : $"USE {MssqlTableScript.Quote(_database.Trim())};\nGO\n";
+        await RunSqlAsync(use + "SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES ORDER BY 1, 2;");
+    }
+
+    private async Task RunSqlAsync(string sql)
+    {
+        _busy = true;
+        _result = null;
+        try { _result = await Manager.ExecuteSqlAsync(_selected, sql, _cts.Token); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

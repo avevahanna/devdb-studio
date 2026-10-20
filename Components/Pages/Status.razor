@@ -1,0 +1,520 @@
+@page "/status"
+@inject IDockerService Docker
+@implements IDisposable
+@using System.Globalization
+
+<PageTitle>Status</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Docker status</h1>
+        <p>
+            Live statistics from Docker in WSL.
+            @if (_snap is not null)
+            {
+                <span>Updated @_snap.Timestamp.ToString("HH:mm:ss") · fetched in @_snap.Elapsed.TotalSeconds.ToString("0.0")s</span>
+            }
+        </p>
+    </div>
+    <div class="toolbar">
+        <label class="field">
+            Auto refresh
+            <select @bind="_intervalSeconds" @bind:after="OnIntervalChanged">
+                <option value="0">Off</option>
+                <option value="3">3 s</option>
+                <option value="5">5 s</option>
+                <option value="10">10 s</option>
+                <option value="30">30 s</option>
+            </select>
+        </label>
+        <button class="btn btn-primary" @onclick="() => RefreshAsync(true)" disabled="@_loading">
+            @if (_loading) { <span class="spinner"></span> }
+            Refresh now
+        </button>
+    </div>
+</div>
+
+@if (_toast is not null)
+{
+    <div class="banner @(_toastOk ? "" : "banner--error")" @onclick="() => _toast = null">
+        <div>@_toast</div>
+        <span class="muted">dismiss</span>
+    </div>
+}
+
+@if (_loadError is not null)
+{
+    <div class="banner banner--error"><div><strong>Refresh failed</strong><div>@_loadError</div></div></div>
+}
+
+@if (_snap is null)
+{
+    <div class="card"><div class="card__note" style="padding-top:14px">Loading Docker statistics…</div></div>
+}
+else if (_snap.Error is not null)
+{
+    <div class="banner banner--error">
+        <div>
+            <strong>Docker is not reachable</strong>
+            <div>@_snap.Error</div>
+        </div>
+        <a class="btn btn-primary" href="/setup">Open setup</a>
+    </div>
+}
+else
+{
+    var running = _snap.Containers.Count(c => c.State == "running");
+    var paused = _snap.Containers.Count(c => c.State == "paused");
+    var stopped = _snap.Containers.Count - running - paused;
+    var unhealthy = _snap.Containers.Count(c => c.Health == "unhealthy");
+    var totalCpu = _snap.Stats.Sum(s => s.CpuPercent);
+    var totalMem = _snap.Stats.Sum(s => s.MemUsedBytes);
+    var hostMem = _snap.Host?.MemTotalBytes ?? 0;
+    var rx = _snap.Stats.Sum(s => s.NetRxBytes);
+    var tx = _snap.Stats.Sum(s => s.NetTxBytes);
+    var pids = _snap.Stats.Sum(s => s.Pids);
+
+    @foreach (var w in _snap.Warnings)
+    {
+        <div class="banner banner--warn"><div>@w</div></div>
+    }
+
+    <div class="tiles">
+        <div class="tile tile--ok"><div class="tile__label">Running</div><div class="tile__value">@running</div></div>
+        <div class="tile tile--warn"><div class="tile__label">Paused</div><div class="tile__value">@paused</div></div>
+        <div class="tile"><div class="tile__label">Stopped</div><div class="tile__value">@stopped</div></div>
+        <div class="tile @(unhealthy > 0 ? "tile--bad" : "")"><div class="tile__label">Unhealthy</div><div class="tile__value">@unhealthy</div></div>
+        <div class="tile"><div class="tile__label">Images</div><div class="tile__value">@_snap.Images.Count</div></div>
+        <div class="tile"><div class="tile__label">Volumes</div><div class="tile__value">@_snap.Volumes.Count</div></div>
+        <div class="tile"><div class="tile__label">Networks</div><div class="tile__value">@_snap.Networks.Count</div></div>
+        <div class="tile"><div class="tile__label">Processes</div><div class="tile__value">@pids</div></div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card panel">
+            <div class="panel__head">
+                <span>Total CPU</span>
+                <strong>@totalCpu.ToString("0.0")%</strong>
+            </div>
+            @Spark(_fleetCpu, Math.Max(100, _fleetCpu.DefaultIfEmpty(0).Max()), 420, 70, "spark--blue")
+            <div class="muted small">Sum across running containers, last @_fleetCpu.Count samples. Host has @(_snap.Host?.Cpus ?? 0) CPUs.</div>
+        </div>
+        <div class="card panel">
+            <div class="panel__head">
+                <span>Total memory</span>
+                <strong>@Bytes(totalMem) @(hostMem > 0 ? $"/ {Bytes(hostMem)}" : "")</strong>
+            </div>
+            @Spark(_fleetMem, Math.Max(1, hostMem > 0 ? hostMem : _fleetMem.DefaultIfEmpty(1).Max()), 420, 70, "spark--teal")
+            <div class="muted small">Network totals: ↓ @Bytes(rx) ↑ @Bytes(tx)</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <span class="card__title">Containers</span>
+            <div class="seg">
+                @foreach (var f in new[] { "all", "running", "stopped" })
+                {
+                    var ff = f;
+                    <button class="seg__btn @(_filter == ff ? "seg__btn--on" : "")" @onclick="() => _filter = ff">@ff</button>
+                }
+            </div>
+            <input class="search" placeholder="Search name, image, project…" @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>State</th><th>CPU</th><th>Memory</th><th>Net I/O</th><th>Block I/O</th><th>PIDs</th><th>Ports</th><th class="right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var c in Filtered())
+                {
+                    var st = _snap.Stats.FirstOrDefault(s => s.Id.Length > 0 && string.Equals(s.Id, c.Id, StringComparison.Ordinal));
+                    <tr class="@(_selected == c.Id ? "row--sel" : "")">
+                        <td>
+                            <div class="name">@c.Name</div>
+                            <div class="muted small">@c.Image@(c.Project.Length > 0 ? $" · {c.Project}" : "")</div>
+                        </td>
+                        <td>
+                            <span class="chip chip--@StateClass(c.State)">@c.State</span>
+                            @if (c.Health is "healthy" or "unhealthy" or "starting")
+                            {
+                                <span class="chip chip--@(c.Health == "healthy" ? "pass" : c.Health == "unhealthy" ? "fail" : "unknown")">@c.Health</span>
+                            }
+                            <div class="muted small">@c.Status</div>
+                        </td>
+                        <td class="num">
+                            @if (st is not null)
+                            {
+                                <div>@st.CpuPercent.ToString("0.00")%</div>
+                                <div class="bar"><div class="bar__fill" style="width:@Math.Min(100, st.CpuPercent).ToString("0", CultureInfo.InvariantCulture)%"></div></div>
+                                @if (_cpuHist.TryGetValue(c.Id, out var h)) { @Spark(h, Math.Max(100, h.Max()), 90, 22, "spark--blue") }
+                            }
+                            else { <span class="muted">–</span> }
+                        </td>
+                        <td class="num">
+                            @if (st is not null)
+                            {
+                                <div>@Bytes(st.MemUsedBytes) <span class="muted">/ @Bytes(st.MemLimitBytes)</span></div>
+                                <div class="bar"><div class="bar__fill bar__fill--teal" style="width:@Math.Min(100, st.MemPercent).ToString("0", CultureInfo.InvariantCulture)%"></div></div>
+                                <div class="muted small">@st.MemPercent.ToString("0.0")%</div>
+                            }
+                            else { <span class="muted">–</span> }
+                        </td>
+                        <td class="num small">@(st is null ? "–" : $"↓ {Bytes(st.NetRxBytes)} ↑ {Bytes(st.NetTxBytes)}")</td>
+                        <td class="num small">@(st is null ? "–" : $"R {Bytes(st.BlockReadBytes)} W {Bytes(st.BlockWriteBytes)}")</td>
+                        <td class="num">@(st?.Pids.ToString() ?? "–")</td>
+                        <td class="small"><code>@(c.Ports.Length > 0 ? c.Ports : "–")</code></td>
+                        <td class="right actions">
+                            @foreach (var (action, label, danger) in ActionsFor(c))
+                            {
+                                var key = $"{c.Id}:{action}";
+                                var a = action;
+                                var cid = c.Id;
+                                if (_confirm == key)
+                                {
+                                    <button class="btn btn-sm btn-danger" disabled="@_busy" @onclick="() => RunActionAsync(cid, a)">Confirm @label.ToLower()</button>
+                                    <button class="btn btn-sm" @onclick="() => _confirm = null">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm @(danger ? "btn-outline-danger" : "")" disabled="@_busy"
+                                            @onclick="() => OnAction(cid, a, danger)">@label</button>
+                                }
+                            }
+                            <button class="btn btn-sm" @onclick="() => SelectAsync(c.Id, false)">Logs</button>
+                            <button class="btn btn-sm" @onclick="() => SelectAsync(c.Id, true)">Inspect</button>
+                        </td>
+                    </tr>
+                }
+                @if (!Filtered().Any())
+                {
+                    <tr><td colspan="9" class="muted center">No containers match.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (_selected is not null)
+    {
+        var sel = _snap.Containers.FirstOrDefault(c => c.Id == _selected);
+        <div class="card">
+            <div class="card__head">
+                <span class="card__title">@(_inspect ? "Inspect" : "Logs") — @(sel?.Name ?? _selected)</span>
+                <button class="btn btn-sm" @onclick="() => _logWrap = !_logWrap">@(_logWrap ? "No wrap" : "Wrap")</button>
+                @if (!_inspect)
+                {
+                    <button class="btn btn-sm" @onclick="ToggleFollowAsync">Follow: @(_follow ? "on" : "off")</button>
+                }
+                <button class="btn btn-sm" @onclick="LoadDetailAsync">Reload</button>
+                <button class="btn btn-sm" @onclick="() => { _selected = null; _logText = null; }">Close</button>
+            </div>
+            <div class="card__body">
+                <pre class="logs @(_logWrap ? "" : "logs--nowrap")">@(_logText ?? "Loading…")</pre>
+                @if (_inspect) { <div class="muted small">Environment variable values are masked.</div> }
+            </div>
+        </div>
+    }
+
+    <div class="grid-2">
+        <div class="card panel">
+            <div class="panel__head"><span>Disk usage</span></div>
+            @{ var maxSize = _snap.Disk.Select(d => DockerService.ParseSize(d.Size)).DefaultIfEmpty(1).Max(); if (maxSize <= 0) maxSize = 1; }
+            @foreach (var d in _snap.Disk)
+            {
+                var size = DockerService.ParseSize(d.Size);
+                <div class="disk">
+                    <div class="disk__row"><span>@d.Type</span><span class="muted">@d.Active active / @d.Total total</span></div>
+                    <div class="bar bar--lg"><div class="bar__fill bar__fill--purple" style="width:@((size / maxSize * 100).ToString("0", CultureInfo.InvariantCulture))%"></div></div>
+                    <div class="disk__row small"><span>@d.Size</span><span class="muted">reclaimable @d.Reclaimable</span></div>
+                </div>
+            }
+        </div>
+        <div class="card panel">
+            <div class="panel__head"><span>Docker host</span></div>
+            @if (_snap.Host is { } h2)
+            {
+                <dl class="kv">
+                    <dt>Engine</dt><dd>@h2.ServerVersion</dd>
+                    <dt>OS</dt><dd>@h2.OperatingSystem</dd>
+                    <dt>Kernel</dt><dd>@h2.Kernel</dd>
+                    <dt>Architecture</dt><dd>@h2.Architecture</dd>
+                    <dt>CPUs</dt><dd>@h2.Cpus</dd>
+                    <dt>Memory</dt><dd>@Bytes(h2.MemTotalBytes)</dd>
+                    <dt>Storage driver</dt><dd>@h2.StorageDriver</dd>
+                    <dt>Cgroup</dt><dd>v@(h2.CgroupVersion)</dd>
+                    <dt>Root dir</dt><dd><code>@h2.RootDir</code></dd>
+                    <dt>Hostname</dt><dd>@h2.HostName</dd>
+                </dl>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <div class="seg">
+                @foreach (var t in new[] { "images", "volumes", "networks" })
+                {
+                    var tt = t;
+                    <button class="seg__btn @(_tab == tt ? "seg__btn--on" : "")" @onclick="() => _tab = tt">@tt</button>
+                }
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="table">
+                @if (_tab == "images")
+                {
+                    <thead><tr><th>Repository</th><th>Tag</th><th>ID</th><th>Size</th><th>Created</th></tr></thead>
+                    <tbody>
+                    @foreach (var i in _snap.Images)
+                    {
+                        <tr><td>@i.Repository</td><td><code>@i.Tag</code></td><td><code>@i.Id</code></td><td>@i.Size</td><td class="muted">@i.Created</td></tr>
+                    }
+                    </tbody>
+                }
+                else if (_tab == "volumes")
+                {
+                    <thead><tr><th>Name</th><th>Driver</th></tr></thead>
+                    <tbody>
+                    @foreach (var v in _snap.Volumes)
+                    {
+                        <tr><td><code>@v.Name</code></td><td>@v.Driver</td></tr>
+                    }
+                    </tbody>
+                }
+                else
+                {
+                    <thead><tr><th>Name</th><th>Driver</th><th>Scope</th><th>ID</th></tr></thead>
+                    <tbody>
+                    @foreach (var n in _snap.Networks)
+                    {
+                        <tr><td>@n.Name</td><td>@n.Driver</td><td>@n.Scope</td><td><code>@n.Id</code></td></tr>
+                    }
+                    </tbody>
+                }
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private const int MaxHistory = 60;
+
+    private DockerSnapshot? _snap;
+    private bool _loading, _busy, _logWrap, _inspect;
+    private int _intervalSeconds = 5;
+    private string _filter = "all", _search = "", _tab = "images";
+    private string? _confirm, _selected, _logText, _toast;
+    private bool _toastOk = true;
+    private readonly List<double> _fleetCpu = [], _fleetMem = [];
+    private readonly Dictionary<string, List<double>> _cpuHist = [];
+    private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource? _loopCts;
+    private bool _disposed, _forcePending, _follow;
+    private string? _loadError;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        StartLoop();
+        await RefreshAsync();
+    }
+
+    private void OnIntervalChanged() => StartLoop();
+
+    private void StartLoop()
+    {
+        _loopCts?.Cancel();
+        _loopCts?.Dispose();
+        _loopCts = null;
+        if (_disposed || _intervalSeconds <= 0) return;
+        _loopCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        _ = LoopAsync(TimeSpan.FromSeconds(_intervalSeconds), _loopCts.Token);
+    }
+
+    private async Task LoopAsync(TimeSpan interval, CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                try { await InvokeAsync(() => RefreshAsync()); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { _loadError = ex.Message; }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task RefreshAsync(bool force = false)
+    {
+        if (_disposed) return;
+        if (_loading)
+        {
+            // An explicit refresh (button/action) must not be lost because a timer refresh is in flight.
+            if (force) _forcePending = true;
+            return;
+        }
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            do
+            {
+                // Carry the force flag into the queued iteration so it bypasses the service cache.
+                var forceNow = force || _forcePending;
+                _forcePending = false;
+                force = false;
+                var snap = await Docker.GetSnapshotAsync(forceNow, _cts.Token);
+                if (_disposed) return;
+                _snap = snap;
+                _loadError = null;
+                if (snap.Error is null && snap.StatsOk) RecordHistory(snap);
+            } while (_forcePending && !_disposed);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { _loadError = ex.Message; }
+        finally
+        {
+            _loading = false;
+            if (!_disposed) StateHasChanged();
+        }
+
+        // Log reload runs outside the loading flag so a slow `docker logs` doesn't block stats refreshes.
+        if (_follow && _selected is not null && !_disposed)
+        {
+            await LoadDetailAsync();
+            if (!_disposed) StateHasChanged();
+        }
+    }
+    private void RecordHistory(DockerSnapshot snap)
+    {
+        Push(_fleetCpu, snap.Stats.Sum(s => s.CpuPercent));
+        Push(_fleetMem, snap.Stats.Sum(s => s.MemUsedBytes));
+        var ids = snap.Stats.Select(s => s.Id).ToHashSet();
+        foreach (var k in _cpuHist.Keys.Where(k => !ids.Contains(k)).ToList()) _cpuHist.Remove(k);
+        foreach (var s in snap.Stats)
+        {
+            if (!_cpuHist.TryGetValue(s.Id, out var list)) _cpuHist[s.Id] = list = [];
+            Push(list, s.CpuPercent);
+        }
+    }
+
+    private static void Push(List<double> list, double v)
+    {
+        list.Add(v);
+        if (list.Count > MaxHistory) list.RemoveAt(0);
+    }
+
+    private IEnumerable<ContainerInfo> Filtered() =>
+        _snap!.Containers
+            .Where(c => _filter == "all" || (_filter == "running" ? c.State == "running" : c.State != "running"))
+            .Where(c => _search.Length == 0
+                || c.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || c.Image.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || c.Project.Contains(_search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(c => c.State == "running").ThenBy(c => c.Name);
+
+    private static IEnumerable<(ContainerAction, string, bool)> ActionsFor(ContainerInfo c) => c.State switch
+    {
+        "running" => [(ContainerAction.Restart, "Restart", false), (ContainerAction.Pause, "Pause", false),
+                      (ContainerAction.Stop, "Stop", true), (ContainerAction.Kill, "Kill", true)],
+        "paused" => [(ContainerAction.Unpause, "Resume", false), (ContainerAction.Kill, "Kill", true)],
+        "restarting" => [(ContainerAction.Stop, "Stop", true), (ContainerAction.Kill, "Kill", true)],
+        _ => [(ContainerAction.Start, "Start", false), (ContainerAction.Remove, "Remove", true)],
+    };
+
+    private void OnAction(string id, ContainerAction action, bool needsConfirm)
+    {
+        if (needsConfirm) _confirm = $"{id}:{action}";
+        else _ = RunActionAsync(id, action);
+
+    }
+
+    private async Task ToggleFollowAsync()
+    {
+        _follow = !_follow;
+        if (_follow) await LoadDetailAsync();
+    }
+
+    private async Task RunActionAsync(string id, ContainerAction action)
+    {
+        if (_disposed) return;
+        _confirm = null;
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            var r = await Docker.ExecuteAsync(id, action, _cts.Token);
+            if (_disposed) return;
+            _toast = r.Message;
+            _toastOk = r.Success;
+            if (action == ContainerAction.Remove && r.Success && _selected == id) { _selected = null; _logText = null; }
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex) { _toast = $"{action} failed: {ex.Message}"; _toastOk = false; }
+        finally { _busy = false; }
+        await RefreshAsync(force: true);
+    }
+    private async Task SelectAsync(string id, bool inspect)
+    {
+        _selected = id;
+        _inspect = inspect;
+        _logText = null;
+        StateHasChanged();
+        await LoadDetailAsync();
+    }
+
+    private async Task LoadDetailAsync()
+    {
+        if (_selected is null) return;
+        var id = _selected;
+        var inspect = _inspect;
+        try
+        {
+            var text = inspect
+                ? await Docker.GetInspectAsync(id, _cts.Token)
+                : await Docker.GetLogsAsync(id, 200, _cts.Token);
+            // Ignore a slow response if the user switched container or view meanwhile.
+            if (_selected == id && _inspect == inspect) _logText = text;
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private static string StateClass(string s) => s switch { "running" => "pass", "exited" or "dead" => "fail", _ => "unknown" };
+
+    private static string Bytes(double b)
+    {
+        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        var i = 0;
+        while (b >= 1024 && i < units.Length - 1) { b /= 1024; i++; }
+        return $"{b.ToString(i == 0 ? "0" : "0.0", CultureInfo.InvariantCulture)} {units[i]}";
+    }
+
+    private static MarkupString Spark(IReadOnlyList<double> values, double max, int w, int h, string cls)
+    {
+        if (values.Count < 2) return new MarkupString($"<svg class=\"spark {cls}\" width=\"{w}\" height=\"{h}\"></svg>");
+        var step = (double)w / (MaxHistory - 1);
+        var offset = w - step * (values.Count - 1);
+        var pts = values.Select((v, i) =>
+            $"{(offset + i * step).ToString("0.#", CultureInfo.InvariantCulture)},{(h - 2 - Math.Clamp(v / max, 0, 1) * (h - 4)).ToString("0.#", CultureInfo.InvariantCulture)}");
+        var line = string.Join(' ', pts);
+        var first = offset.ToString("0.#", CultureInfo.InvariantCulture);
+        var area = $"{first},{h} {line} {w},{h}";
+        return new MarkupString(
+            $"<svg class=\"spark {cls}\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\">" +
+            $"<polygon class=\"spark__area\" points=\"{area}\"/><polyline class=\"spark__line\" points=\"{line}\"/></svg>");
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _cts.Cancel();
+        _loopCts?.Cancel();
+        _loopCts?.Dispose();
+        _cts.Dispose();
+    }
+}

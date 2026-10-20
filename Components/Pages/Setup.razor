@@ -1,0 +1,109 @@
+@page "/setup"
+@inject IPrerequisiteCheckService Checks
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Setup</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Setup status</h1>
+        <p>Checks that WSL2, Ubuntu and Docker are ready to host database servers.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="RunAsync" disabled="@_running">
+        @if (_running) { <span class="spinner"></span> }
+        @(_running ? "Checking…" : "Re-run checks")
+    </button>
+</div>
+
+@if (_results is not null)
+{
+    var ready = _results.All(r => r.Status == CheckStatus.Pass);
+    @if (ready)
+    {
+        <div class="banner">
+            <div><strong>Ready</strong><div>All prerequisites are met.</div></div>
+            <button class="btn btn-success" @onclick='() => Nav.NavigateTo("/instances")'>Continue</button>
+        </div>
+    }
+
+    <div>
+        @foreach (var r in _results)
+        {
+            <div class="card card--@r.Status.ToString().ToLowerInvariant()">
+                <div class="card__head">
+                    <span class="card__title">@r.Title</span>
+                    <code class="card__cmd">@r.Command</code>
+                    <span class="chip chip--@r.Status.ToString().ToLowerInvariant()">@r.Status</span>
+                </div>
+                @if (r.Status == CheckStatus.Fail)
+                {
+                    <div class="card__body">
+                        <h4>What failed</h4>
+                        <p>@r.Title</p>
+                        <h4>Why it matters</h4>
+                        <p>@r.WhyItMatters</p>
+                        <h4>How to fix</h4>
+                        <ol>
+                            @foreach (var step in Steps(r.HelpMarkdown))
+                            {
+                                <li>@RenderStep(step)</li>
+                            }
+                        </ol>
+                        @if (r.StdErr.Length > 0 || r.StdOut.Length > 0)
+                        {
+                            <details>
+                                <summary>Command output</summary>
+                                <pre>@(r.StdErr.Length > 0 ? r.StdErr : r.StdOut)</pre>
+                            </details>
+                        }
+                    </div>
+                }
+                else if (r.Status == CheckStatus.Unknown)
+                {
+                    <div class="card__note">@r.StdErr</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<CheckResult>? _results;
+    private bool _running;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await RunAsync();
+    }
+
+    private async Task RunAsync()
+    {
+        if (_running) return;
+        _running = true;
+        StateHasChanged();
+        try { _results = await Checks.RunChecksAsync(_cts.Token); }
+        catch (OperationCanceledException) { }
+        finally { _running = false; }
+        StateHasChanged();
+    }
+
+    // Help text is "N. text" lines; strip numbering, keep other lines as-is.
+    private static IEnumerable<string> Steps(string md) =>
+        md.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+          .Select(l => System.Text.RegularExpressions.Regex.Replace(l, @"^\d+\.\s*", ""));
+
+    // Render `code` and **bold** spans.
+    private static RenderFragment RenderStep(string text) => b =>
+    {
+        foreach (var part in System.Text.RegularExpressions.Regex.Split(text, @"(`[^`]+`|\*\*[^*]+\*\*)"))
+        {
+            if (part.StartsWith('`')) { b.OpenElement(0, "code"); b.AddContent(1, part.Trim('`')); b.CloseElement(); }
+            else if (part.StartsWith("**")) { b.OpenElement(2, "strong"); b.AddContent(3, part.Trim('*')); b.CloseElement(); }
+            else b.AddContent(4, part);
+        }
+    };
+
+    public void Dispose() { _cts.Cancel(); _cts.Dispose(); }
+}

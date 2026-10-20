@@ -1,0 +1,74 @@
+# DB Serve
+
+A local web app for creating and managing database servers that run as Docker containers inside **Ubuntu on WSL2** — no Docker Desktop required.
+
+Built with .NET 10 Blazor Server (interactive server rendering), running on Windows.
+
+## Features
+
+- **Setup** (`/setup`) – prerequisite checker for WSL, the Ubuntu distro, Docker CLI, Docker daemon and Docker Compose. Failed checks show why it matters and exact fix commands.
+- **Instances** (`/instances`, `/instances/create`) – create, start, stop and delete database instances. Cards show the DBMS, status, port, and a connection string with reveal and copy-to-clipboard.
+- **Query** (`/query`) – run SQL against a running instance and view results as tables (with a raw-output toggle).
+- **Tables** (`/tables`) – visual table designer that generates a T-SQL `CREATE TABLE` script and runs it.
+- **Status** (`/status`) – live Docker statistics (CPU/memory, containers, images, volumes, networks, disk usage) with auto-refresh, plus container administration (start, stop, restart, pause, kill, remove, logs, inspect).
+
+### Supported DBMS
+
+| DBMS | Status |
+|------|--------|
+| Microsoft SQL Server | Implemented |
+| PostgreSQL | Stub (TODO) |
+| MariaDB | Stub (TODO) |
+
+New DBMS support is added by implementing `IDbmsProvider` (`Services/Dbms`) and registering it in `Program.cs`.
+
+## Prerequisites
+
+- Windows with WSL2 and an Ubuntu distro
+- Docker Engine + Compose plugin installed **inside** Ubuntu
+- .NET 10 SDK
+
+The Setup page verifies these and explains how to fix anything missing.
+
+## Run
+
+```powershell
+dotnet run
+```
+
+Then open <http://localhost:5190>.
+
+## Configuration (`appsettings.json`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `Wsl:DistroName` | `Ubuntu` | WSL distro that hosts Docker |
+| `Wsl:CommandTimeoutSeconds` | `10` | Default timeout for `wsl.exe` commands |
+| `Wsl:ColdStartTimeoutSeconds` | `60` | Timeout when WSL is starting up |
+| `Wsl:KeepAlive` | `true` | Keeps a `wsl.exe` session open so WSL doesn't shut down and stop the containers while the app runs |
+| `Storage:InstancesFile` | `%LocalAppData%\DbServeApp\instances.json` | Where instances are persisted |
+| `Security:AllowRemoteAccess` | `false` | Allow non-loopback clients (not recommended) |
+
+## Architecture
+
+- `Services/ProcessRunner.cs`, `WslDockerRunner.cs` – run `wsl.exe -d <distro> --exec docker ...` with timeout, cancellation and captured stdout/stderr (no shell quoting).
+- `Services/Dbms/` – provider pattern: `IDbmsProvider`, `MssqlProvider`, `InstanceManager` (orchestration, status via `docker ps -a`), `JsonInstanceRepository`, `SqlcmdOutputParser`, `MssqlTableScript`.
+- `Services/DockerService.cs`, `PrerequisiteCheckService.cs` – Status page data and Setup checks.
+- `Components/Pages`, `Components/Shared` – UI. Styling in `wwwroot/app.css`.
+
+SQL Server containers are created with a named volume at `/var/opt/mssql`, named `dbapp-mssql-<shortId>`, and published on `127.0.0.1:<port>` only. Queries run through `sqlcmd` inside the container.
+
+## Security notes
+
+- The app only accepts loopback requests and rejects cross-origin requests by default.
+- SA passwords are stored in **plain text** in `instances.json` (v1) and are visible in `docker inspect`. Use this for local development only.
+- The Query and Tables pages run arbitrary SQL by design.
+- Connect from Windows with `127.0.0.1,<port>` (not `localhost`, which may resolve to IPv6).
+
+## Out of scope
+
+Authentication, multi-user support, automatic installation of WSL/Docker, and advanced result grids.
+
+## Author
+
+Mattias Dahlgren — [mattias.dahlgren@aveva.com](mailto:mattias.dahlgren@aveva.com)

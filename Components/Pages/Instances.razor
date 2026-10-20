@@ -1,0 +1,193 @@
+﻿@page "/instances"
+@using DbServeApp.Services.Dbms
+@implements IDisposable
+@inject IInstanceManager Manager
+
+<PageTitle>Instances</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Instances</h1>
+        <p>Database servers running as containers in WSL.</p>
+    </div>
+    <div class="toolbar">
+        <button class="btn btn-sm" @onclick="RefreshAsync" disabled="@(_loading || _busy)">
+            @if (_loading) { <span class="spinner"></span> }
+            Re-run status
+        </button>
+        <a class="btn btn-primary" href="/instances/create">Create instance</a>
+    </div>
+</div>
+
+@if (_message is not null)
+{
+    <div class="banner @(_messageOk ? "" : "banner--error")" @onclick="() => _message = null">
+        <div>
+            <strong>@_message</strong>
+            @if (!string.IsNullOrWhiteSpace(_messageDetail)) { <pre class="logs">@_messageDetail</pre> }
+        </div>
+    </div>
+}
+
+@if (_dockerError is not null)
+{
+    <div class="banner banner--error">
+        <div>
+            <strong>Docker is not reachable — statuses are unknown</strong>
+            <pre class="logs">@_dockerError</pre>
+        </div>
+        <a class="btn btn-primary" href="/setup">Open setup</a>
+    </div>
+}
+
+@if (_instances is null)
+{
+    <div class="card"><div class="card__note" style="padding-top:14px">Loading instances…</div></div>
+}
+else if (_instances.Count == 0)
+{
+    <div class="card">
+        <div class="card__note" style="padding-top:14px">
+            No instances yet. <a href="/instances/create">Create your first SQL Server instance</a>.
+        </div>
+    </div>
+}
+else
+{
+    <div class="inst-grid">
+    @foreach (var i in _instances)
+    {
+        var provider = Manager.GetProvider(i.DbmsKey);
+        var st = i.Status.ToString().ToLowerInvariant();
+        <article class="inst inst--@st">
+            <header class="inst__head">
+                <DbmsBadge Key="@i.DbmsKey" DisplayName="@provider?.DisplayName" Tag="@i.ImageTag" />
+                <span class="chip @ChipClass(i.Status)"><span class="dot dot--@st"></span>@i.Status</span>
+            </header>
+            <h2 class="inst__name">@i.Name</h2>
+            <dl class="inst__meta">
+                <div><dt>Port</dt><dd>@i.HostPort</dd></div>
+                <div><dt>Database</dt><dd>@i.DatabaseName</dd></div>
+                <div><dt>User</dt><dd>@i.Username</dd></div>
+                <div><dt>Created</dt><dd>@i.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
+            </dl>
+            <ConnectionStringBox Build="mask => Manager.BuildConnectionString(i, mask)" />
+            @if (i.Status == InstanceStatus.NotFound)
+            {
+                <p class="muted">The container no longer exists in Docker. Delete this entry to clean up.</p>
+            }
+            <footer class="inst__actions">
+                @if (i.Status == InstanceStatus.Running)
+                {
+                    <button class="btn btn-sm" disabled="@_busy" @onclick="() => StopAsync(i)">Stop</button>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-primary" disabled="@(_busy || i.Status == InstanceStatus.NotFound)" @onclick="() => StartAsync(i)">Start</button>
+                }
+                <a class="btn btn-sm" href="/query?instance=@i.Id">Query</a>
+                <a class="btn btn-sm" href="/tables?instance=@i.Id">Design table</a>
+                <span class="spacer"></span>
+                <button class="btn btn-sm btn-outline-danger" disabled="@_busy" @onclick="() => AskDelete(i)">Delete</button>
+            </footer>
+            @if (_confirmDelete == i.Id)
+            {
+                <div class="banner banner--warn">
+                    <div>
+                        <strong>Delete “@i.Name”?</strong>
+                        <label class="check">
+                            <input type="checkbox" @bind="_deleteVolume" /> Also delete the data volume (<code>@i.VolumeName</code>) — cannot be undone
+                        </label>
+                    </div>
+                    <button class="btn btn-sm btn-danger" disabled="@_busy" @onclick="() => DeleteAsync(i)">Confirm delete</button>
+                    <button class="btn btn-sm" @onclick="() => _confirmDelete = null">Cancel</button>
+                </div>
+            }
+        </article>
+    }
+    </div>
+}
+
+
+@code {
+    private IReadOnlyList<DbInstance>? _instances;
+    private readonly CancellationTokenSource _cts = new();
+    private bool _loading, _busy, _deleteVolume, _messageOk;
+    private Guid? _confirmDelete;
+    private string? _message, _messageDetail, _dockerError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _instances = await Manager.GetAllAsync(_cts.Token);
+        await RefreshAsync();
+    }
+
+    private static string ChipClass(InstanceStatus s) => s switch
+    {
+        InstanceStatus.Running => "chip--pass",
+        InstanceStatus.Stopped or InstanceStatus.NotFound => "chip--fail",
+        _ => "chip--unknown",
+    };
+
+    private async Task RefreshAsync()
+    {
+        if (_loading) return;
+        _loading = true;
+        try
+        {
+            var r = await Manager.RefreshStatusAsync(_cts.Token);
+            _instances = r.Instances;
+            _dockerError = r.Error;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { _dockerError = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private void AskDelete(DbInstance i)
+    {
+        _deleteVolume = false;
+        _confirmDelete = i.Id;
+    }
+
+    private Task StartAsync(DbInstance i) => RunAsync(() => Manager.StartAsync(i.Id, _cts.Token));
+    private Task StopAsync(DbInstance i) => RunAsync(() => Manager.StopAsync(i.Id, _cts.Token));
+
+    private async Task DeleteAsync(DbInstance i)
+    {
+        var withVolume = _deleteVolume;
+        _confirmDelete = null;
+        await RunAsync(() => Manager.DeleteAsync(i.Id, withVolume, _cts.Token));
+    }
+
+    private async Task RunAsync(Func<Task<InstanceActionResult>> action)
+    {
+        if (_busy) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            var r = await action();
+            _messageOk = r.Success;
+            _message = r.Message;
+            _messageDetail = r.StdErr;
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex)
+        {
+            _messageOk = false;
+            _message = "Unexpected error";
+            _messageDetail = ex.Message;
+        }
+        finally { _busy = false; }
+
+        _loading = false;
+        await RefreshAsync();
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

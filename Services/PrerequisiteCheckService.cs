@@ -1,0 +1,114 @@
+using Microsoft.Extensions.Options;
+
+namespace DbServeApp.Services;
+
+public enum CheckStatus { Unknown, Pass, Fail }
+
+public sealed class WslOptions
+{
+    public string DistroName { get; set; } = "Ubuntu";
+    public int CommandTimeoutSeconds { get; set; } = 10;
+    public int ColdStartTimeoutSeconds { get; set; } = 60;
+    // Holds a wsl.exe session open so WSL doesn't shut down the VM (and kill containers) while idle.
+    public bool KeepAlive { get; set; } = true;
+}
+
+public sealed record CheckResult(
+    string CheckId, string Title, CheckStatus Status, string Command,
+    string StdOut, string StdErr, string WhyItMatters, string HelpMarkdown);
+
+public interface IPrerequisiteCheckService
+{
+    Task<IReadOnlyList<CheckResult>> RunChecksAsync(CancellationToken ct = default);
+}
+
+public sealed class PrerequisiteCheckService(IOptions<WslOptions> options) : IPrerequisiteCheckService
+{
+    private const string Wsl = "wsl.exe";
+    private readonly WslOptions _opt = options.Value;
+
+    public async Task<IReadOnlyList<CheckResult>> RunChecksAsync(CancellationToken ct = default)
+    {
+        var d = _opt.DistroName;
+        var results = new List<CheckResult>();
+
+        var wsl = await Run("wsl", "WSL available", "Docker for this app runs inside WSL2, which must be installed.",
+            ["--status"], r => r.ExitCode == 0,
+            """
+            1. Open **PowerShell as Administrator**.
+            2. Run: `wsl --install`
+            3. Reboot Windows when prompted.
+            """, ct);
+        results.Add(wsl);
+
+        var distro = await Run("distro", $"{d} distro installed", $"Docker is installed in the '{d}' WSL distribution.",
+            ["-l", "-q"],
+            r => r.ExitCode == 0 && r.StdOut.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Any(l => string.Equals(l, d, StringComparison.OrdinalIgnoreCase)),
+            $"""
+            1. Open PowerShell.
+            2. Run: `wsl --install -d {d}`
+            3. Launch {d} once and create your Linux user.
+            4. Verify with `wsl -l -q`.
+            """, ct, dependsOn: wsl);
+        results.Add(distro);
+
+        // Starting the WSL VM can take far longer than a normal command; absorb that once so later checks don't time out.
+        if (distro.Status == CheckStatus.Pass)
+            await ProcessRunner.RunAsync(Wsl, ["-d", d, "--exec", "true"], TimeSpan.FromSeconds(_opt.ColdStartTimeoutSeconds), ct);
+
+        var cli = await Run("docker-cli", "Docker CLI installed", "The app uses the docker command to create database containers.",
+            ["-d", d, "--", "docker", "--version"], r => r.ExitCode == 0,
+            $"""
+            1. Open {d}: `wsl -d {d}`
+            2. Install Docker Engine: `curl -fsSL https://get.docker.com | sudo sh`
+            3. Verify: `docker --version`
+            """, ct, dependsOn: distro);
+        results.Add(cli);
+
+        var daemon = await Run("docker-daemon", "Docker daemon reachable", "Containers can only be created when the Docker daemon is running and accessible.",
+            ["-d", d, "--", "docker", "info"], r => r.ExitCode == 0,
+            """
+            1. Start the daemon: `sudo service docker start` (or `sudo systemctl start docker` if systemd is enabled).
+            2. Verify: `docker info`
+            """, ct, dependsOn: cli,
+            failHelp: r => IsPermissionDenied(r)
+                ? $"""
+                  1. Your user is not allowed to access /var/run/docker.sock (permission denied). Add your user to the docker group: `sudo usermod -aG docker $USER`
+                  2. Restart WSL from PowerShell: `wsl --shutdown`
+                  3. Reopen {d} and verify: `docker info`
+                  """
+                : null);
+        results.Add(daemon);
+
+        results.Add(await Run("compose", "Docker Compose available", "Compose is used to define and start database stacks.",
+            ["-d", d, "--", "docker", "compose", "version"], r => r.ExitCode == 0,
+            $"""
+            1. Open {d}: `wsl -d {d}`
+            2. Install the plugin: `sudo apt-get update && sudo apt-get install -y docker-compose-plugin`
+            3. Verify: `docker compose version`
+            """, ct, dependsOn: cli));
+
+        return results;
+    }
+
+    private static bool IsPermissionDenied(ProcessResult r) =>
+        (r.StdErr + r.StdOut).Contains("permission denied", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<CheckResult> Run(
+        string id, string title, string why, string[] args, Func<ProcessResult, bool> pass, string help,
+        CancellationToken ct, CheckResult? dependsOn = null, Func<ProcessResult, string?>? failHelp = null)
+    {
+        var command = $"{Wsl} {string.Join(' ', args)}";
+        // Skip dependent checks when a prerequisite failed; their result would be meaningless.
+        if (dependsOn is { Status: not CheckStatus.Pass })
+            return new CheckResult(id, title, CheckStatus.Unknown, command, "",
+                $"Skipped because '{dependsOn.Title}' did not pass.", why, "");
+
+        var r = await ProcessRunner.RunAsync(Wsl, args, TimeSpan.FromSeconds(_opt.CommandTimeoutSeconds), ct);
+        if (pass(r))
+            return new CheckResult(id, title, CheckStatus.Pass, command, r.StdOut, r.StdErr, why, "");
+
+        return new CheckResult(id, title, CheckStatus.Fail, command, r.StdOut, r.StdErr, why, failHelp?.Invoke(r) ?? help);
+    }
+}
