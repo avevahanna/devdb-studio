@@ -25,7 +25,7 @@ else
     <div class="card">
         <div class="card__body form">
             <label class="field">Instance
-                <select @bind="_selected" disabled="@_busy">
+                <select value="@_selected" @onchange="OnInstanceChanged" disabled="@_busy">
                     @foreach (var i in _instances)
                     {
                         <option value="@i.Id">@i.Name — @i.Status (port @i.HostPort)</option>
@@ -36,9 +36,12 @@ else
             {
                 <div class="inline-info">
                     <DbmsBadge Key="@si.DbmsKey" DisplayName="@Manager.GetProvider(si.DbmsKey)?.DisplayName" Tag="@si.ImageTag" />
-                    <span class="muted">Database: @si.DatabaseName · port @si.HostPort</span>
+                    <span class="muted">Default database: @si.DatabaseName · port @si.HostPort</span>
                 </div>
             }
+            <label class="field">Database
+                <input type="text" @bind="_database" disabled="@_busy" />
+            </label>
             <label class="field">SQL
                 <textarea rows="10" @bind="_sql" @bind:event="oninput" spellcheck="false" disabled="@_busy"></textarea>
             </label>
@@ -91,6 +94,7 @@ else
     private readonly CancellationTokenSource _cts = new();
     private Guid _selected;
     private string _sql = "SELECT @@VERSION AS version;";
+    private string _database = "";
     private bool _busy, _refreshing;
     private QueryResult? _result;
 
@@ -103,7 +107,16 @@ else
         _selected = _instances.FirstOrDefault(i => i.Id == InstanceId)?.Id
             ?? _instances.FirstOrDefault(i => i.Status == InstanceStatus.Running)?.Id
             ?? _instances.FirstOrDefault()?.Id ?? Guid.Empty;
+        _database = SelectedInstance?.DatabaseName ?? "";
         await RefreshAsync();
+    }
+
+    private void OnInstanceChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        _selected = id;
+        _database = SelectedInstance?.DatabaseName ?? "";
+        _result = null;
     }
 
     private async Task RefreshAsync()
@@ -120,7 +133,11 @@ else
         if (_busy || !CanRun) return;
         _busy = true;
         _result = null;
-        try { _result = await Manager.ExecuteSqlAsync(_selected, _sql, _cts.Token); }
+        var db = _database.Trim();
+        var sql = db.Length == 0 || db == SelectedInstance?.DatabaseName
+            ? _sql
+            : $"USE [{db.Replace("]", "]]")}];\nGO\n{_sql}";
+        try { _result = await Manager.ExecuteSqlAsync(_selected, sql, _cts.Token); }
         catch (OperationCanceledException) { return; }
         catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }
         finally { _busy = false; }

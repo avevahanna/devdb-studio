@@ -27,7 +27,7 @@ else
         <div class="card__body form form--wide">
             <div class="form-row">
                 <label class="field">Instance
-                    <select @bind="_selected" disabled="@_busy">
+                    <select value="@_selected" @onchange="OnInstanceChanged" disabled="@_busy">
                         @foreach (var i in _instances)
                         {
                             <option value="@i.Id">@i.Name — @i.Status (port @i.HostPort)</option>
@@ -186,6 +186,14 @@ else
         _script = string.IsNullOrWhiteSpace(_table) || _columns.Count == 0
             ? "-- Enter a table name and add columns to see the script."
             : MssqlTableScript.Build(def, use);
+    }
+
+    private void OnInstanceChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        _selected = id;
+        _database = SelectedInstance?.DatabaseName ?? "master";
+        _result = null;
     }
 
     private void AddColumn() => _columns.Add(new ColumnDef { Name = "", Type = "nvarchar", Length = 100 });
