@@ -8,6 +8,10 @@ public interface IDbmsProvider
     int DefaultPort { get; }
     string DefaultImageTag { get; }
     string DefaultDatabase { get; }
+    /// <summary>Fully qualified image name without tag.</summary>
+    string ImageName { get; }
+    string AdminUser { get; }
+    string NamePrefix { get; }
 
     Task<InstanceCreateResult> CreateAsync(InstanceCreateRequest req, CancellationToken ct);
     Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct);

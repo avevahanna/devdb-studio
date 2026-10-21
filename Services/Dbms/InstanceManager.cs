@@ -89,6 +89,11 @@ public sealed class InstanceManager(
                 await repo.AddAsync(result.Instance, CancellationToken.None);
                 log.LogInformation("Created {Dbms} instance {Name} ({Container}) on port {Port}", provider.Key, name, result.Instance.ContainerName, req.HostPort);
             }
+            var output = result.Message + " " + result.StdErr;
+            if (!result.Success &&
+                (output.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase) ||
+                 output.Contains("address already in use", StringComparison.OrdinalIgnoreCase)))
+                return InstanceCreateResult.Fail($"Port {req.HostPort} is already in use by another container or process outside DB Serve. Choose a different host port.", result.StdErr);
             return result;
         }
         finally { _createLock.Release(); }

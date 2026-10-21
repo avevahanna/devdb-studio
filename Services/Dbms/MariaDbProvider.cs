@@ -12,6 +12,9 @@ public sealed class MariaDbProvider : IDbmsProvider
     public int DefaultPort => 3306;
     public string DefaultImageTag => "11";
     public string DefaultDatabase => "mysql";
+    public string ImageName => "docker.io/library/mariadb";
+    public string AdminUser => "root";
+    public string NamePrefix => "maria";
 
     public Task<InstanceCreateResult> CreateAsync(InstanceCreateRequest req, CancellationToken ct) => throw new NotImplementedException();
     public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) => throw new NotImplementedException();

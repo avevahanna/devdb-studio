@@ -8,7 +8,7 @@
 <div class="page-header">
     <div>
         <h1>Query</h1>
-        <p>Run SQL against a running instance using sqlcmd inside the container.</p>
+        <p>Run SQL against a running instance using the DBMS command-line client inside the container.</p>
     </div>
 </div>
 
@@ -93,7 +93,9 @@ else
     private IReadOnlyList<DbInstance>? _instances;
     private readonly CancellationTokenSource _cts = new();
     private Guid _selected;
-    private string _sql = "SELECT @@VERSION AS version;";
+    private const string MssqlSample = "SELECT @@VERSION AS version;";
+    private const string PostgresSample = "SELECT version();";
+    private string _sql = MssqlSample;
     private string _database = "";
     private bool _busy, _refreshing;
     private QueryResult? _result;
@@ -108,7 +110,15 @@ else
             ?? _instances.FirstOrDefault(i => i.Status == InstanceStatus.Running)?.Id
             ?? _instances.FirstOrDefault()?.Id ?? Guid.Empty;
         _database = SelectedInstance?.DatabaseName ?? "";
+        UseSampleForInstance();
         await RefreshAsync();
+    }
+
+    // Swap the untouched sample query when switching between DBMSs.
+    private void UseSampleForInstance()
+    {
+        var pg = SelectedInstance?.DbmsKey == PostgresProvider.ProviderKey;
+        if (_sql is MssqlSample or PostgresSample) _sql = pg ? PostgresSample : MssqlSample;
     }
 
     private void OnInstanceChanged(ChangeEventArgs e)
@@ -116,6 +126,7 @@ else
         if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
         _selected = id;
         _database = SelectedInstance?.DatabaseName ?? "";
+        UseSampleForInstance();
         _result = null;
     }
 
@@ -136,7 +147,7 @@ else
         var db = _database.Trim();
         var sql = db.Length == 0 || db == SelectedInstance?.DatabaseName
             ? _sql
-            : $"USE [{db.Replace("]", "]]")}];\nGO\n{_sql}";
+            : TableDialect.For(SelectedInstance?.DbmsKey).Use(db) + _sql;
         try { _result = await Manager.ExecuteSqlAsync(_selected, sql, _cts.Token); }
         catch (OperationCanceledException) { return; }
         catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }

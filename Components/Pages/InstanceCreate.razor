@@ -36,7 +36,7 @@ else if (_result is not null)
 <div class="card">
     <div class="card__body form">
         <label class="field">DBMS
-            <select @bind="_dbms" disabled="@_busy">
+            <select value="@_dbms" @onchange="OnDbmsChanged" disabled="@_busy">
                 @foreach (var p in Manager.Providers)
                 {
                     <option value="@p.Key">@p.DisplayName</option>
@@ -50,7 +50,7 @@ else if (_result is not null)
         <label class="field">Host port
             <input type="number" @bind="_port" min="1024" max="65535" disabled="@_busy" />
         </label>
-        <label class="field">SA password
+        <label class="field">@(Provider?.AdminUser == "sa" ? "SA password" : $"Password (user {Provider?.AdminUser})")
             <span class="inline">
                 <input type="@(_showPw ? "text" : "password")" @bind="_password" @bind:event="oninput" autocomplete="new-password" disabled="@_busy" />
                 <button type="button" class="btn btn-sm" @onclick="() => _showPw = !_showPw">@(_showPw ? "Hide" : "Show")</button>
@@ -68,7 +68,7 @@ else if (_result is not null)
         <label class="field">Image tag
             <input type="text" @bind="_tag" disabled="@_busy" />
         </label>
-        <p class="muted">Image: <code>mcr.microsoft.com/mssql/server:@_tag</code>. The container is bound to 127.0.0.1 and uses a named volume for data.</p>
+        <p class="muted">Image: <code>@Provider?.ImageName:@_tag</code>. The container is bound to 127.0.0.1 and uses a named volume for data.</p>
 
         @if (_errors.Count > 0)
         {
@@ -92,16 +92,33 @@ else if (_result is not null)
     private bool _busy, _showPw;
     private IReadOnlyList<string> _errors = [];
     private InstanceCreateResult? _result;
+    private IReadOnlyList<DbInstance> _existing = [];
+
+    private IDbmsProvider? Provider => Manager.GetProvider(_dbms);
 
     protected override async Task OnInitializedAsync()
     {
+        _existing = await Manager.GetAllAsync(_cts.Token);
         _dbms = Manager.Providers.FirstOrDefault()?.Key ?? "";
-        var existing = await Manager.GetAllAsync(_cts.Token);
-        var used = existing.Select(i => i.HostPort).ToHashSet();
-        var p = 1433;
-        while (used.Contains(p)) p++;
-        _port = p;
-        _name = $"sql-{existing.Count + 1}";
+        ApplyDefaults();
+    }
+
+    private void OnDbmsChanged(ChangeEventArgs e)
+    {
+        _dbms = e.Value?.ToString() ?? _dbms;
+        ApplyDefaults();
+    }
+
+    private void ApplyDefaults()
+    {
+        if (Provider is not { } p) return;
+        var used = _existing.Select(i => i.HostPort).ToHashSet();
+        var port = p.DefaultPort;
+        while (used.Contains(port)) port++;
+        _port = port;
+        _tag = p.DefaultImageTag;
+        _database = p.DefaultDatabase;
+        _name = $"{p.NamePrefix}-{_existing.Count + 1}";
     }
 
     private async Task CreateAsync()

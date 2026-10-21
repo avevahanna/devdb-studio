@@ -9,7 +9,7 @@
 <div class="page-header">
     <div>
         <h1>Table designer</h1>
-        <p>Design a table visually and create it with a generated T-SQL script.</p>
+        <p>Design a table visually and create it with a generated SQL script (T-SQL or PostgreSQL, depending on the instance).</p>
     </div>
 </div>
 
@@ -78,15 +78,15 @@ else
                             <td><input type="text" @bind="c.Name" @bind:event="oninput" placeholder="column_name" disabled="@_busy" /></td>
                             <td>
                                 <select value="@c.Type" @onchange="e => TypeChanged(c, e.Value?.ToString())" disabled="@_busy">
-                                    @foreach (var t in MssqlTableScript.Types) { <option value="@t">@t</option> }
+                                    @foreach (var t in Dialect.Types) { <option value="@t">@t</option> }
                                 </select>
                             </td>
                             <td>
-                                @if (MssqlTableScript.UsesLength(c.Type))
+                                @if (Dialect.UsesLength(c.Type))
                                 {
-                                    <input type="number" class="num" @bind="c.Length" min="1" max="8000" placeholder="MAX" disabled="@_busy" />
+                                    <input type="number" class="num" @bind="c.Length" min="1" max="@Dialect.MaxLength" placeholder="@(Dialect == TableDialect.Mssql ? "MAX" : "none")" disabled="@_busy" />
                                 }
-                                else if (MssqlTableScript.UsesPrecision(c.Type))
+                                else if (Dialect.UsesPrecision(c.Type))
                                 {
                                     <input type="number" class="num" @bind="c.Precision" min="1" max="38" title="Precision" disabled="@_busy" />
                                     <input type="number" class="num" @bind="c.Scale" min="0" max="38" title="Scale" disabled="@_busy" />
@@ -95,8 +95,8 @@ else
                             </td>
                             <td class="c"><input type="checkbox" @bind="c.Nullable" disabled="@(_busy || c.PrimaryKey || c.Identity)" /></td>
                             <td class="c"><input type="checkbox" checked="@c.PrimaryKey" @onchange="e => PkChanged(c, (bool)(e.Value ?? false))" disabled="@_busy" /></td>
-                            <td class="c"><input type="checkbox" checked="@c.Identity" @onchange="e => IdentityChanged(c, (bool)(e.Value ?? false))" disabled="@(_busy || !MssqlTableScript.CanIdentity(c.Type))" /></td>
-                            <td><input type="text" @bind="c.Default" @bind:event="oninput" placeholder="e.g. 0 or GETDATE()" disabled="@(_busy || c.Identity)" /></td>
+                            <td class="c"><input type="checkbox" checked="@c.Identity" @onchange="e => IdentityChanged(c, (bool)(e.Value ?? false))"                             disabled="@(_busy || !Dialect.CanIdentity(c.Type))" /></td>
+                                                        <td><input type="text" @bind="c.Default" @bind:event="oninput" placeholder="@Dialect.DefaultHint" disabled="@(_busy || c.Identity)" /></td>
                             <td class="actions">
                                 <button class="btn btn-sm" title="Move up" disabled="@(_busy || idx == 0)" @onclick="() => Move(idx, -1)">↑</button>
                                 <button class="btn btn-sm" title="Move down" disabled="@(_busy || idx == _columns.Count - 1)" @onclick="() => Move(idx, 1)">↓</button>
@@ -157,6 +157,8 @@ else
     private readonly List<ColumnDef> _columns = [];
     private Guid _selected;
     private string _database = "master", _schema = "dbo", _table = "";
+    private TableDialect _dialect = TableDialect.Mssql;
+    private TableDialect Dialect => _dialect;
     private bool _busy, _refreshing, _copied;
     private QueryResult? _result;
     private string _resultTitle = "";
@@ -171,7 +173,9 @@ else
         _selected = _instances.FirstOrDefault(i => i.Id == InstanceId)?.Id
             ?? _instances.FirstOrDefault(i => i.Status == InstanceStatus.Running)?.Id
             ?? _instances.FirstOrDefault()?.Id ?? Guid.Empty;
-        _database = SelectedInstance?.DatabaseName ?? "master";
+        _dialect = TableDialect.For(SelectedInstance?.DbmsKey);
+        _database = SelectedInstance?.DatabaseName ?? _dialect.DefaultDatabase;
+        _schema = _dialect.DefaultSchema;
         AddIdColumn();
         await RefreshAsync();
     }
@@ -181,32 +185,41 @@ else
     private void Rebuild()
     {
         var def = new TableDef(_schema.Trim(), _table.Trim(), _columns);
-        _errors = MssqlTableScript.Validate(def);
+        _errors = Dialect.Validate(def);
         var use = string.IsNullOrWhiteSpace(_database) || _database == SelectedInstance?.DatabaseName ? null : _database.Trim();
         _script = string.IsNullOrWhiteSpace(_table) || _columns.Count == 0
             ? "-- Enter a table name and add columns to see the script."
-            : MssqlTableScript.Build(def, use);
+            : Dialect.Build(def, use);
     }
 
     private void OnInstanceChanged(ChangeEventArgs e)
     {
         if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
         _selected = id;
-        _database = SelectedInstance?.DatabaseName ?? "master";
+        var dialect = TableDialect.For(SelectedInstance?.DbmsKey);
+        if (dialect != _dialect)
+        {
+            // Column types and the default schema differ between DBMSs, so start over.
+            _dialect = dialect;
+            _schema = dialect.DefaultSchema;
+            _columns.Clear();
+            AddIdColumn();
+        }
+        _database = SelectedInstance?.DatabaseName ?? _dialect.DefaultDatabase;
         _result = null;
     }
 
-    private void AddColumn() => _columns.Add(new ColumnDef { Name = "", Type = "nvarchar", Length = 100 });
+    private void AddColumn() => _columns.Add(new ColumnDef { Name = "", Type = Dialect.TextType, Length = 100 });
 
     private void AddIdColumn() =>
-        _columns.Insert(0, new ColumnDef { Name = "Id", Type = "int", Nullable = false, PrimaryKey = true, Identity = true });
+        _columns.Insert(0, new ColumnDef { Name = "Id", Type = Dialect.IntType, Nullable = false, PrimaryKey = true, Identity = true });
 
     private void TypeChanged(ColumnDef c, string? type)
     {
-        c.Type = type ?? "int";
-        if (MssqlTableScript.UsesLength(c.Type) && c.Length is null) c.Length = 100;
-        if (!MssqlTableScript.CanIdentity(c.Type)) c.Identity = false;
-        if (c.Type == "decimal") { c.Precision ??= 18; c.Scale ??= 2; }
+        c.Type = type ?? Dialect.IntType;
+        if (Dialect.UsesLength(c.Type) && c.Length is null) c.Length = 100;
+        if (!Dialect.CanIdentity(c.Type)) c.Identity = false;
+        if (Dialect.UsesPrecision(c.Type)) { c.Precision ??= 18; c.Scale ??= 2; }
     }
 
     private static void PkChanged(ColumnDef c, bool v)
@@ -258,8 +271,7 @@ else
     {
         if (_busy || SelectedInstance is null) return;
         _resultTitle = "Existing tables";
-        var use = string.IsNullOrWhiteSpace(_database) ? "" : $"USE {MssqlTableScript.Quote(_database.Trim())};\nGO\n";
-        await RunSqlAsync(use + "SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES ORDER BY 1, 2;");
+        await RunSqlAsync(Dialect.Use(_database) + Dialect.ListTablesSql);
     }
 
     private async Task RunSqlAsync(string sql)

@@ -20,6 +20,9 @@ public sealed class MssqlProvider(IWslDockerRunner docker, ILogger<MssqlProvider
     public int DefaultPort => 1433;
     public string DefaultImageTag => "2022-latest";
     public string DefaultDatabase => "master";
+    public string ImageName => Image;
+    public string AdminUser => "sa";
+    public string NamePrefix => "sql";
 
     public async Task<InstanceCreateResult> CreateAsync(InstanceCreateRequest req, CancellationToken ct)
     {
