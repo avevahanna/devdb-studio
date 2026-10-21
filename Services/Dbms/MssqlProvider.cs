@@ -37,17 +37,7 @@ public sealed class MssqlProvider(IWslDockerRunner docker, ILogger<MssqlProvider
 
         try
         {
-            var run = await docker.RunAsync(
-            [
-                "run", "-d", "--name", container,
-                "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
-                // Loopback only: the SA password is the sole protection of this server.
-                "-p", $"127.0.0.1:{req.HostPort}:1433",
-                "-e", "ACCEPT_EULA=Y",
-                "-e", $"MSSQL_SA_PASSWORD={req.Password}",
-                "-v", $"{volume}:/var/opt/mssql",
-                $"{Image}:{tag}"
-            ], PullAndRunTimeout, ct: ct);
+            var run = await docker.RunAsync(BuildRunArgs(req, id, container, volume), PullAndRunTimeout, ct: ct);
 
             if (run.ExitCode != 0)
                 return await ContainerLifecycle.FailedRunAsync(docker, log, run, container, volume);
@@ -87,6 +77,21 @@ public sealed class MssqlProvider(IWslDockerRunner docker, ILogger<MssqlProvider
             throw;
         }
     }
+
+    public string PasswordEnvVar => "MSSQL_SA_PASSWORD";
+    public string? DatabaseEnvVar => null;
+
+    public IReadOnlyList<string> BuildRunArgs(InstanceCreateRequest req, Guid id, string container, string volume) =>
+    [
+        "run", "-d", "--name", container,
+        "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
+        // Loopback only: the SA password is the sole protection of this server.
+        "-p", $"127.0.0.1:{req.HostPort}:1433",
+        "-e", "ACCEPT_EULA=Y",
+        "-e", $"MSSQL_SA_PASSWORD={req.Password}",
+        "-v", $"{volume}:/var/opt/mssql",
+        $"{Image}:{req.ImageTag.Trim()}"
+    ];
 
     public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) =>
         ContainerLifecycle.StartContainerAsync(docker, instance, ct);

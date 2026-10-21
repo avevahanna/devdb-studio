@@ -9,6 +9,13 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.6.0
+
+- Create page: **Show compose preview** displays the exact container settings as a compose file. Port, image tag, password and database can be edited there and the form follows when the editor loses focus; edits the form cannot express are flagged as not used.
+- Clear errors and warnings next to the preview: validation problems, duplicate name or port, floating tags, non-default tags, and port bindings that are not loopback-only.
+- The preview is rendered from each provider's real `docker run` arguments (`IDbmsProvider.BuildRunArgs`), so it cannot drift from what is executed. The password is masked unless "Show" is pressed.
+- Tests: 194 in total.
+
 ## 1.5.2
 
 Remaining code-review findings.

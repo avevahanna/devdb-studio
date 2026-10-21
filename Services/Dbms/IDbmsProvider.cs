@@ -27,4 +27,11 @@ public interface IDbmsProvider
     Task<InstanceActionResult> DeleteAsync(DbInstance instance, bool deleteVolume, CancellationToken ct);
     Task<QueryResult> ExecuteSqlAsync(DbInstance instance, string sql, CancellationToken ct);
     string BuildConnectionString(DbInstance instance, bool maskPassword);
+
+    /// <summary>The exact <c>docker run</c> arguments used to create an instance. Also the source of the compose preview.</summary>
+    IReadOnlyList<string> BuildRunArgs(InstanceCreateRequest req, Guid id, string container, string volume);
+    /// <summary>Environment variable that carries the password in <see cref="BuildRunArgs"/>.</summary>
+    string PasswordEnvVar { get; }
+    /// <summary>Environment variable that carries the database name, or null when it is not passed that way.</summary>
+    string? DatabaseEnvVar { get; }
 }

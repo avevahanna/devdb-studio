@@ -231,6 +231,17 @@ input[type=checkbox] { accent-color: var(--primary); }
 .hint--err { color: var(--error); }
 .check { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 
+/* ---------- Compose preview ---------- */
+.compose__editor { width: 100%; box-sizing: border-box; min-height: 340px; padding: 12px; font: 13px/1.5 var(--mono); background: var(--code-bg); color: var(--code-text); border: 1px solid var(--border-strong); border-radius: 8px; resize: vertical; white-space: pre; overflow: auto; }
+.compose__editor:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.issues { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.issues li { padding: 8px 12px; border-radius: 8px; border-left: 4px solid; font-size: 13.5px; }
+.issue--error { background: var(--error-bg); border-color: var(--error); color: var(--error); }
+.issue--warning { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.issue--info { background: var(--neutral-bg); border-color: var(--border-strong); color: var(--muted); }
+.issue--ok { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+.compose__note { margin: 0 0 12px; }
+
 .valid.modified:not([type=checkbox]) { outline: 1px solid var(--success); }
 .invalid { outline: 1px solid var(--error); }
 .validation-message { color: var(--error); }

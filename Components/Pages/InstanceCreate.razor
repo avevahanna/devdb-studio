@@ -84,20 +84,88 @@ else if (_result is not null)
                 Create instance
             </button>
             @if (_busy) { <span class="muted">Creating… the first image pull can take several minutes.</span> }
+            <button type="button" class="btn" @onclick="() => _showCompose = !_showCompose">@(_showCompose ? "Hide compose preview" : "Show compose preview")</button>
         </div>
     </div>
 </div>
+
+@if (_showCompose && Provider is not null)
+{
+    var yaml = YamlText;
+    var issues = ComposePreview.Check(Provider, Request(), _existing, yaml, _lastEdit);
+    <div class="card">
+        <div class="card__head"><h2>Compose preview</h2></div>
+        <div class="card__body">
+            <p class="muted compose__note">
+                This is exactly what will be created, written as a compose file. You can edit the port, image tag, password and
+                database here and the form follows when you leave the editor. Other changes cannot be applied and are flagged.
+                The password is hidden unless you press "Show" in the form.
+            </p>
+            @if (issues.Count == 0)
+            {
+                <ul class="issues"><li class="issue--ok">Everything looks fine.</li></ul>
+            }
+            else
+            {
+                <ul class="issues">
+                    @foreach (var i in issues)
+                    {
+                        <li class="issue--@(i.Severity.ToString().ToLowerInvariant())"><strong>@(i.Severity == PreviewSeverity.Error ? "Error" : i.Severity == PreviewSeverity.Warning ? "Warning" : "Note"):</strong> @i.Message</li>
+                    }
+                </ul>
+            }
+            <textarea class="compose__editor" spellcheck="false" wrap="off" rows="20"
+                      value="@yaml" @onchange="OnYamlChanged" disabled="@_busy"></textarea>
+            <div class="toolbar">
+                <button type="button" class="btn btn-sm" @onclick="ResetYaml" disabled="@(_busy || _edited is null)">Reset from form</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private readonly CancellationTokenSource _cts = new();
     private string _dbms = "", _name = "", _password = "", _database = "master", _tag = "2022-latest";
     private int _port = 1433;
-    private bool _busy, _showPw;
+    private bool _busy, _showPw, _showCompose;
+    private string? _edited, _editedKey;
+    private ComposeEdit? _lastEdit;
     private IReadOnlyList<string> _errors = [];
     private InstanceCreateResult? _result;
     private IReadOnlyList<DbInstance> _existing = [];
 
     private IDbmsProvider? Provider => Manager.GetProvider(_dbms);
+
+    private InstanceCreateRequest Request() => new(_name.Trim(), _dbms, _port, _password, _database.Trim(), _tag.Trim());
+
+    private string FormKey => $"{_dbms}|{_port}|{_password}|{_database}|{_tag}|{_showPw}";
+
+    // The form is the source of truth: text typed in the editor only survives until the form changes.
+    private string YamlText
+    {
+        get
+        {
+            if (_edited is not null && _editedKey != FormKey) { _edited = null; _lastEdit = null; }
+            return _edited ?? ComposePreview.Render(Provider!, Request(), maskPassword: !_showPw);
+        }
+    }
+
+    private void OnYamlChanged(ChangeEventArgs e)
+    {
+        if (Provider is not { } p) return;
+        var text = e.Value?.ToString() ?? "";
+        var edit = ComposePreview.Parse(p, Request(), text, maskPassword: !_showPw);
+        if (edit.HostPort is { } port) _port = port;
+        if (edit.Tag is { } tag) _tag = tag;
+        if (edit.Password is { } pw) _password = pw;
+        if (edit.Database is { } db) _database = db;
+
+        _lastEdit = edit;
+        _edited = edit.Ignored.Count == 0 ? null : text; // fully applied: show the normalized text again
+        _editedKey = FormKey;
+    }
+
+    private void ResetYaml() { _edited = null; _lastEdit = null; }
 
     protected override async Task OnInitializedAsync()
     {

@@ -48,17 +48,7 @@ public abstract class MySqlFamilyProvider(IWslDockerRunner docker, ILogger log) 
 
         try
         {
-            var run = await docker.RunAsync(
-            [
-                "run", "-d", "--name", container,
-                "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
-                // Loopback only: the password is the sole protection of this server.
-                "-p", $"127.0.0.1:{req.HostPort}:3306",
-                "-e", $"{RootPasswordEnv}={req.Password}",
-                "-e", $"{DatabaseEnv}={req.DatabaseName}",
-                "-v", $"{volume}:/var/lib/mysql",
-                $"{ImageName}:{tag}"
-            ], PullAndRunTimeout, ct: ct);
+            var run = await docker.RunAsync(BuildRunArgs(req, id, container, volume), PullAndRunTimeout, ct: ct);
 
             if (run.ExitCode != 0)
                 return await ContainerLifecycle.FailedRunAsync(docker, log, run, container, volume);
@@ -90,6 +80,21 @@ public abstract class MySqlFamilyProvider(IWslDockerRunner docker, ILogger log) 
             throw;
         }
     }
+
+    public string PasswordEnvVar => RootPasswordEnv;
+    string? IDbmsProvider.DatabaseEnvVar => DatabaseEnv;
+
+    public IReadOnlyList<string> BuildRunArgs(InstanceCreateRequest req, Guid id, string container, string volume) =>
+    [
+        "run", "-d", "--name", container,
+        "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
+        // Loopback only: the password is the sole protection of this server.
+        "-p", $"127.0.0.1:{req.HostPort}:3306",
+        "-e", $"{RootPasswordEnv}={req.Password}",
+        "-e", $"{DatabaseEnv}={req.DatabaseName}",
+        "-v", $"{volume}:/var/lib/mysql",
+        $"{ImageName}:{req.ImageTag.Trim()}"
+    ];
 
     public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) =>
         ContainerLifecycle.StartContainerAsync(docker, instance, ct);

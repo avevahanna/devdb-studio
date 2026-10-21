@@ -38,17 +38,7 @@ public sealed class MongoDbProvider(IWslDockerRunner docker, ILogger<MongoDbProv
 
         try
         {
-            var run = await docker.RunAsync(
-            [
-                "run", "-d", "--name", container,
-                "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
-                // Loopback only: the password is the sole protection of this server.
-                "-p", $"127.0.0.1:{req.HostPort}:27017",
-                "-e", $"MONGO_INITDB_ROOT_USERNAME={AdminUser}",
-                "-e", $"MONGO_INITDB_ROOT_PASSWORD={req.Password}",
-                "-v", $"{volume}:/data/db",
-                $"{ImageName}:{tag}"
-            ], PullAndRunTimeout, ct: ct);
+            var run = await docker.RunAsync(BuildRunArgs(req, id, container, volume), PullAndRunTimeout, ct: ct);
 
             if (run.ExitCode != 0)
                 return await ContainerLifecycle.FailedRunAsync(docker, log, run, container, volume);
@@ -80,6 +70,21 @@ public sealed class MongoDbProvider(IWslDockerRunner docker, ILogger<MongoDbProv
             throw;
         }
     }
+
+    public string PasswordEnvVar => "MONGO_INITDB_ROOT_PASSWORD";
+    public string? DatabaseEnvVar => null;
+
+    public IReadOnlyList<string> BuildRunArgs(InstanceCreateRequest req, Guid id, string container, string volume) =>
+    [
+        "run", "-d", "--name", container,
+        "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
+        // Loopback only: the password is the sole protection of this server.
+        "-p", $"127.0.0.1:{req.HostPort}:27017",
+        "-e", $"MONGO_INITDB_ROOT_USERNAME={AdminUser}",
+        "-e", $"MONGO_INITDB_ROOT_PASSWORD={req.Password}",
+        "-v", $"{volume}:/data/db",
+        $"{ImageName}:{req.ImageTag.Trim()}"
+    ];
 
     public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) =>
         ContainerLifecycle.StartContainerAsync(docker, instance, ct);

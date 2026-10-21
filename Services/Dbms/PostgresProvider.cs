@@ -63,17 +63,7 @@ public abstract class PostgresFamilyProvider(IWslDockerRunner docker, ILogger lo
 
         try
         {
-            var run = await docker.RunAsync(
-            [
-                "run", "-d", "--name", container,
-                "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
-                // Loopback only: the password is the sole protection of this server.
-                "-p", $"127.0.0.1:{req.HostPort}:5432",
-                "-e", $"POSTGRES_PASSWORD={req.Password}",
-                "-e", $"POSTGRES_DB={req.DatabaseName}",
-                "-v", $"{volume}:{DataMount(tag)}",
-                $"{ImageName}:{tag}"
-            ], PullAndRunTimeout, ct: ct);
+            var run = await docker.RunAsync(BuildRunArgs(req, id, container, volume), PullAndRunTimeout, ct: ct);
 
             if (run.ExitCode != 0)
                 return await ContainerLifecycle.FailedRunAsync(docker, log, run, container, volume);
@@ -105,6 +95,21 @@ public abstract class PostgresFamilyProvider(IWslDockerRunner docker, ILogger lo
             throw;
         }
     }
+
+    public string PasswordEnvVar => "POSTGRES_PASSWORD";
+    public string? DatabaseEnvVar => "POSTGRES_DB";
+
+    public IReadOnlyList<string> BuildRunArgs(InstanceCreateRequest req, Guid id, string container, string volume) =>
+    [
+        "run", "-d", "--name", container,
+        "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
+        // Loopback only: the password is the sole protection of this server.
+        "-p", $"127.0.0.1:{req.HostPort}:5432",
+        "-e", $"POSTGRES_PASSWORD={req.Password}",
+        "-e", $"POSTGRES_DB={req.DatabaseName}",
+        "-v", $"{volume}:{DataMount(req.ImageTag.Trim())}",
+        $"{ImageName}:{req.ImageTag.Trim()}"
+    ];
 
     public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) =>
         ContainerLifecycle.StartContainerAsync(docker, instance, ct);

@@ -39,18 +39,7 @@ public sealed class RedisProvider(IWslDockerRunner docker, ILogger<RedisProvider
 
         try
         {
-            var run = await docker.RunAsync(
-            [
-                "run", "-d", "--name", container,
-                "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
-                // Loopback only: the password is the sole protection of this server.
-                "-p", $"127.0.0.1:{req.HostPort}:6379",
-                // The password stays out of the command line; the shell expands it from the environment.
-                "-e", $"REDIS_PASSWORD={req.Password}",
-                "-v", $"{volume}:/data",
-                $"{ImageName}:{tag}",
-                "sh", "-c", "exec redis-server --requirepass \"$REDIS_PASSWORD\" --appendonly yes"
-            ], PullAndRunTimeout, ct: ct);
+            var run = await docker.RunAsync(BuildRunArgs(req, id, container, volume), PullAndRunTimeout, ct: ct);
 
             if (run.ExitCode != 0)
                 return await ContainerLifecycle.FailedRunAsync(docker, log, run, container, volume);
@@ -82,6 +71,22 @@ public sealed class RedisProvider(IWslDockerRunner docker, ILogger<RedisProvider
             throw;
         }
     }
+
+    public string PasswordEnvVar => "REDIS_PASSWORD";
+    public string? DatabaseEnvVar => null;
+
+    public IReadOnlyList<string> BuildRunArgs(InstanceCreateRequest req, Guid id, string container, string volume) =>
+    [
+        "run", "-d", "--name", container,
+        "--label", "dbapp.managed=true", "--label", $"dbapp.id={id}", "--label", $"dbapp.dbms={Key}",
+        // Loopback only: the password is the sole protection of this server.
+        "-p", $"127.0.0.1:{req.HostPort}:6379",
+        // The password stays out of the command line; the shell expands it from the environment.
+        "-e", $"REDIS_PASSWORD={req.Password}",
+        "-v", $"{volume}:/data",
+        $"{ImageName}:{req.ImageTag.Trim()}",
+        "sh", "-c", "exec redis-server --requirepass \"$REDIS_PASSWORD\" --appendonly yes"
+    ];
 
     public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) =>
         ContainerLifecycle.StartContainerAsync(docker, instance, ct);
