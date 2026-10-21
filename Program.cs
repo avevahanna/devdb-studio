@@ -25,6 +25,7 @@ builder.Services.AddSingleton<IDbmsProvider, MariaDbProvider>();
 builder.Services.AddSingleton<IDbmsProvider, MySqlProvider>();
 builder.Services.AddSingleton<IInstanceManager, InstanceManager>();
 builder.Services.AddSingleton<ITableDataService, TableDataService>();
+builder.Services.AddSingleton<IDbInsightService, DbInsightService>();
 builder.Services.AddHostedService<WslKeepAliveService>();
 
 var app = builder.Build();

@@ -1,11 +1,14 @@
 @page "/status"
 @inject IDockerService Docker
+@inject IInstanceManager Manager
+@inject IDbInsightService Insights
 @implements IDisposable
 @using System.Globalization
+@using DbServeApp.Services.Dbms
 
 <PageTitle>Status</PageTitle>
 
-<div class="page-header">
+<div class="page-header page-header--wide">
     <div>
         <h1>Container status</h1>
         <p>
@@ -73,6 +76,9 @@ else
     var rx = _snap.Stats.Sum(s => s.NetRxBytes);
     var tx = _snap.Stats.Sum(s => s.NetTxBytes);
     var pids = _snap.Stats.Sum(s => s.Pids);
+    var restarts = _snap.Details.Values.Sum(d => d.RestartCount);
+    var oomKilled = _snap.Details.Values.Count(d => d.OomKilled);
+    var unusedImages = _snap.Details.Count == 0 && _snap.Containers.Count > 0 ? -1 : _snap.Images.Count(i => i.UsedBy.Count == 0);
 
     @foreach (var w in _snap.Warnings)
     {
@@ -84,8 +90,10 @@ else
         <div class="tile tile--warn"><div class="tile__label">Paused</div><div class="tile__value">@paused</div></div>
         <div class="tile"><div class="tile__label">Stopped</div><div class="tile__value">@stopped</div></div>
         <div class="tile @(unhealthy > 0 ? "tile--bad" : "")"><div class="tile__label">Unhealthy</div><div class="tile__value">@unhealthy</div></div>
-        <div class="tile"><div class="tile__label">Images</div><div class="tile__value">@_snap.Images.Count</div></div>
-        <div class="tile"><div class="tile__label">Volumes</div><div class="tile__value">@_snap.Volumes.Count</div></div>
+        <div class="tile @(restarts > 0 ? "tile--warn" : "")"><div class="tile__label">Restarts</div><div class="tile__value">@restarts</div></div>
+        <div class="tile @(oomKilled > 0 ? "tile--bad" : "")"><div class="tile__label">Out of memory</div><div class="tile__value">@oomKilled</div></div>
+        <div class="tile"><div class="tile__label">Images</div><div class="tile__value">@_snap.Images.Count</div><div class="tile__sub">@(unusedImages < 0 ? "" : $"{unusedImages} unused")</div></div>
+        <div class="tile"><div class="tile__label">Volumes</div><div class="tile__value">@_snap.Volumes.Count</div><div class="tile__sub">@(_snap.Volumes.Count(v => v.UsedBy.Count == 0 && _snap.Details.Count > 0)) unused</div></div>
         <div class="tile"><div class="tile__label">Networks</div><div class="tile__value">@_snap.Networks.Count</div></div>
         <div class="tile"><div class="tile__label">Processes</div><div class="tile__value">@pids</div></div>
     </div>
@@ -105,9 +113,88 @@ else
                 <strong>@Bytes(totalMem) @(hostMem > 0 ? $"/ {Bytes(hostMem)}" : "")</strong>
             </div>
             @Spark(_fleetMem, Math.Max(1, hostMem > 0 ? hostMem : _fleetMem.DefaultIfEmpty(1).Max()), 420, 70, "spark--teal")
-            <div class="muted small">Network totals: ↓ @Bytes(rx) ↑ @Bytes(tx)</div>
+            <div class="muted small">Network totals since the containers started: ↓ @Bytes(rx) ↑ @Bytes(tx)</div>
+        </div>
+        <div class="card panel">
+            <div class="panel__head">
+                <span>Network throughput</span>
+                <strong>↓ @Rate(_rxRate.LastOrDefault()) · ↑ @Rate(_txRate.LastOrDefault())</strong>
+            </div>
+            @Spark(_rxRate, Math.Max(1024, Math.Max(_rxRate.DefaultIfEmpty(0).Max(), _txRate.DefaultIfEmpty(0).Max())), 420, 34, "spark--blue")
+            @Spark(_txRate, Math.Max(1024, Math.Max(_rxRate.DefaultIfEmpty(0).Max(), _txRate.DefaultIfEmpty(0).Max())), 420, 34, "spark--teal")
+            <div class="muted small">Rate between refreshes, summed across running containers (top: received, bottom: sent).</div>
+        </div>
+        <div class="card panel">
+            <div class="panel__head">
+                <span>Disk I/O</span>
+                <strong>R @Rate(_blkReadRate.LastOrDefault()) · W @Rate(_blkWriteRate.LastOrDefault())</strong>
+            </div>
+            @Spark(_blkReadRate, Math.Max(1024, Math.Max(_blkReadRate.DefaultIfEmpty(0).Max(), _blkWriteRate.DefaultIfEmpty(0).Max())), 420, 34, "spark--blue")
+            @Spark(_blkWriteRate, Math.Max(1024, Math.Max(_blkReadRate.DefaultIfEmpty(0).Max(), _blkWriteRate.DefaultIfEmpty(0).Max())), 420, 34, "spark--teal")
+            <div class="muted small">Block device reads (top) and writes (bottom), summed across running containers.</div>
         </div>
     </div>
+
+    @if (_instances is { Count: > 0 })
+    {
+        <div class="card">
+            <div class="card__head">
+                <span class="card__title">Database instances</span>
+                <span class="muted small">Connections exclude the probe itself@(_insightsAt == default ? "" : $" · read {_insightsAt.ToString("HH:mm:ss")}")</span>
+                <button class="btn btn-sm" @onclick="() => RefreshInsightsAsync(true)" disabled="@_insightsBusy">
+                    @if (_insightsBusy) { <span class="spinner"></span> }
+                    Refresh insights
+                </button>
+            </div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr><th>Instance</th><th>State</th><th>Endpoint</th><th>CPU</th><th>Memory</th><th>Connections</th><th>Databases</th><th>Data size</th><th>Volume on disk</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var inst in _instances.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        var ctr = _snap.Containers.FirstOrDefault(x => x.Name == inst.ContainerName);
+                        var ist = ctr is null ? null : _snap.Stats.FirstOrDefault(s => s.Id.Length > 0 && s.Id == ctr.Id);
+                        var ins = _insights.GetValueOrDefault(inst.Id);
+                        var vol = _snap.Volumes.FirstOrDefault(v => v.Name == inst.VolumeName);
+                        var isRunning = ctr?.State == "running";
+                        <tr>
+                            <td>
+                                <DbmsBadge Key="@inst.DbmsKey" DisplayName="@Manager.GetProvider(inst.DbmsKey)?.DisplayName" Tag="@inst.ImageTag" />
+                                <div class="name">@inst.Name</div>
+                            </td>
+                            <td>
+                                <span class="chip chip--@(ctr is null ? "fail" : StateClass(ctr.State))">@(ctr?.State ?? "missing")</span>
+                                @if (ctr is not null && _snap.DetailFor(ctr.Id) is { StartedAt: { } started } && isRunning)
+                                {
+                                    <div class="muted small">up @Span(DateTimeOffset.Now - started)</div>
+                                }
+                            </td>
+                            <td class="small"><code>127.0.0.1:@inst.HostPort</code><div class="muted">@inst.DatabaseName</div></td>
+                            <td class="num">@(ist is null ? "–" : $"{ist.CpuPercent:0.0}%")</td>
+                            <td class="num small">@(ist is null ? "–" : $"{Bytes(ist.MemUsedBytes)} ({ist.MemPercent:0.0}%)")</td>
+                            <td class="num">
+                                @if (!isRunning) { <span class="muted">–</span> }
+                                else if (ins is null) { <span class="muted">…</span> }
+                                else if (!ins.Ok) { <span class="muted" title="@ins.Error">n/a</span> }
+                                else
+                                {
+                                    var pct = ins.MaxConnections > 0 ? Math.Min(100, ins.Connections * 100.0 / ins.MaxConnections) : 0;
+                                    <div>@ins.Connections <span class="muted">/ @ins.MaxConnections</span></div>
+                                    <div class="bar"><div class="bar__fill" style="width:@Math.Max(pct, ins.Connections > 0 ? 2 : 0).ToString("0", CultureInfo.InvariantCulture)%"></div></div>
+                                }
+                            </td>
+                            <td class="num">@(ins is { Ok: true } ? ins.UserDatabases.ToString() : "–")</td>
+                            <td class="num">@(ins is { Ok: true } ? Bytes(ins.SizeMb * 1024 * 1024) : "–")</td>
+                            <td class="num small">@(vol is { Size.Length: > 0 } ? vol.Size : "–")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 
     <div class="card">
         <div class="card__head">
@@ -125,23 +212,37 @@ else
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Name</th><th>State</th><th>CPU</th><th>Memory</th><th>Net I/O</th><th>Block I/O</th><th>PIDs</th><th>Ports</th><th class="right">Actions</th>
+                        <th>Name</th><th>State</th><th>CPU</th><th>Memory</th><th>I/O</th><th>PIDs</th><th>Ports</th><th class="right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 @foreach (var c in Filtered())
                 {
                     var st = _snap.Stats.FirstOrDefault(s => s.Id.Length > 0 && string.Equals(s.Id, c.Id, StringComparison.Ordinal));
+                    var det = _snap.DetailFor(c.Id);
+                    var inst = _instances?.FirstOrDefault(i => i.ContainerName == c.Name);
                     <tr class="@(_selected == c.Id ? "row--sel" : "")">
                         <td>
                             <div class="name">@c.Name</div>
                             <div class="muted small">@c.Image@(c.Project.Length > 0 ? $" · {c.Project}" : "")</div>
+                            @if (inst is not null)
+                            {
+                                <span class="chip chip--brand">DB Serve · @(Manager.GetProvider(inst.DbmsKey)?.DisplayName ?? inst.DbmsKey) · @inst.Name</span>
+                            }
                         </td>
                         <td>
                             <span class="chip chip--@StateClass(c.State)">@c.State</span>
                             @if (c.Health is "healthy" or "unhealthy" or "starting")
                             {
                                 <span class="chip chip--@(c.Health == "healthy" ? "pass" : c.Health == "unhealthy" ? "fail" : "unknown")">@c.Health</span>
+                            }
+                            @if (det is { RestartCount: > 0 })
+                            {
+                                <span class="chip chip--warn" title="Restart count">↻ @det.RestartCount</span>
+                            }
+                            @if (det is { OomKilled: true })
+                            {
+                                <span class="chip chip--fail" title="The kernel killed the container for exceeding its memory">OOM</span>
                             }
                             <div class="muted small">@c.Status</div>
                         </td>
@@ -159,15 +260,22 @@ else
                             {
                                 <div>@Bytes(st.MemUsedBytes) <span class="muted">/ @Bytes(st.MemLimitBytes)</span></div>
                                 <div class="bar"><div class="bar__fill bar__fill--teal" style="width:@Math.Min(100, st.MemPercent).ToString("0", CultureInfo.InvariantCulture)%"></div></div>
+                                @if (_memHist.TryGetValue(c.Id, out var mh)) { @Spark(mh, 100, 90, 22, "spark--teal") }
                                 <div class="muted small">@st.MemPercent.ToString("0.0")%</div>
                             }
                             else { <span class="muted">–</span> }
                         </td>
-                        <td class="num small">@(st is null ? "–" : $"↓ {Bytes(st.NetRxBytes)} ↑ {Bytes(st.NetTxBytes)}")</td>
-                        <td class="num small">@(st is null ? "–" : $"R {Bytes(st.BlockReadBytes)} W {Bytes(st.BlockWriteBytes)}")</td>
+                        <td class="small io">
+                            @if (st is null) { <span class="muted">–</span> }
+                            else
+                            {
+                                <div>Net ↓ @Bytes(st.NetRxBytes) ↑ @Bytes(st.NetTxBytes)</div>
+                                <div class="muted">Disk R @Bytes(st.BlockReadBytes) W @Bytes(st.BlockWriteBytes)</div>
+                            }
+                        </td>
                         <td class="num">@(st?.Pids.ToString() ?? "–")</td>
                         <td class="small"><code>@(c.Ports.Length > 0 ? c.Ports : "–")</code></td>
-                        <td class="right actions">
+                        <td class="right actions actions--wrap">
                             @foreach (var (action, label, danger) in ActionsFor(c))
                             {
                                 var key = $"{c.Id}:{action}";
@@ -184,14 +292,14 @@ else
                                             @onclick="() => OnAction(cid, a, danger)">@label</button>
                                 }
                             }
-                            <button class="btn btn-sm" @onclick="() => SelectAsync(c.Id, false)">Logs</button>
-                            <button class="btn btn-sm" @onclick="() => SelectAsync(c.Id, true)">Inspect</button>
+                            <button class="btn btn-sm" @onclick='() => SelectAsync(c.Id, "details")'>Details</button>
+                            <button class="btn btn-sm" @onclick='() => SelectAsync(c.Id, "logs")'>Logs</button>
                         </td>
                     </tr>
                 }
                 @if (!Filtered().Any())
                 {
-                    <tr><td colspan="9" class="muted center">No containers match.</td></tr>
+                    <tr><td colspan="8" class="muted center">No containers match.</td></tr>
                 }
                 </tbody>
             </table>
@@ -201,23 +309,184 @@ else
     @if (_selected is not null)
     {
         var sel = _snap.Containers.FirstOrDefault(c => c.Id == _selected);
+        var selDet = sel is null ? null : _snap.DetailFor(sel.Id);
+        var selInst = sel is null ? null : _instances?.FirstOrDefault(i => i.ContainerName == sel.Name);
         <div class="card">
             <div class="card__head">
-                <span class="card__title">@(_inspect ? "Inspect" : "Logs") — @(sel?.Name ?? _selected)</span>
-                <button class="btn btn-sm" @onclick="() => _logWrap = !_logWrap">@(_logWrap ? "No wrap" : "Wrap")</button>
-                @if (!_inspect)
+                <span class="card__title">@(sel?.Name ?? _selected)</span>
+                <div class="seg">
+                    @foreach (var v in new[] { "details", "logs", "inspect" })
+                    {
+                        var vv = v;
+                        <button class="seg__btn @(_view == vv ? "seg__btn--on" : "")" @onclick="() => SelectAsync(_selected, vv)">@vv</button>
+                    }
+                </div>
+                @if (_view != "details")
+                {
+                    <button class="btn btn-sm" @onclick="() => _logWrap = !_logWrap">@(_logWrap ? "No wrap" : "Wrap")</button>
+                }
+                @if (_view == "logs")
                 {
                     <button class="btn btn-sm" @onclick="ToggleFollowAsync">Follow: @(_follow ? "on" : "off")</button>
                 }
-                <button class="btn btn-sm" @onclick="LoadDetailAsync">Reload</button>
+                @if (_view != "details")
+                {
+                    <button class="btn btn-sm" @onclick="LoadDetailAsync">Reload</button>
+                }
                 <button class="btn btn-sm" @onclick="() => { _selected = null; _logText = null; }">Close</button>
             </div>
-            <div class="card__body">
-                <pre class="logs @(_logWrap ? "" : "logs--nowrap")">@(_logText ?? "Loading…")</pre>
-                @if (_inspect) { <div class="muted small">Environment variable values are masked.</div> }
-            </div>
+            @if (_view == "details")
+            {
+                <div class="card__body detail">
+                    @if (sel is null || selDet is null)
+                    {
+                        <p class="muted">No inspect data for this container yet. It is read on every state change and every 30 seconds.</p>
+                    }
+                    else
+                    {
+                        var isUp = sel.State is "running" or "paused" or "restarting";
+                        <div>
+                            <h4>State</h4>
+                            <dl class="kv">
+                                <dt>Status</dt><dd>@sel.Status</dd>
+                                @if (isUp && selDet.StartedAt is { } started)
+                                {
+                                    <dt>Uptime</dt><dd>@Span(DateTimeOffset.Now - started) <span class="muted">(since @started.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"))</span></dd>
+                                }
+                                else if (selDet.FinishedAt is { } finished)
+                                {
+                                    <dt>Stopped</dt><dd>@Span(DateTimeOffset.Now - finished) ago <span class="muted">(@finished.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"))</span></dd>
+                                }
+                                <dt>Exit code</dt><dd>@(isUp ? "–" : selDet.ExitCode.ToString())@(selDet.OomKilled ? " · killed for exceeding memory" : "")</dd>
+                                @if (selDet.Error.Length > 0) { <dt>Error</dt><dd>@selDet.Error</dd> }
+                                <dt>Restarts</dt><dd>@selDet.RestartCount <span class="muted">(policy: @(selDet.RestartPolicy is { Length: > 0 } and not "no" ? selDet.RestartPolicy : "none"))</span></dd>
+                                @if (selDet.HealthStatus.Length > 0 && selDet.HealthStatus != "none")
+                                {
+                                    <dt>Health</dt><dd>@selDet.HealthStatus@(selDet.HealthOutput.Length > 0 ? " — " + Trunc(selDet.HealthOutput, 160) : "")</dd>
+                                }
+                                <dt>Created</dt><dd>@(selDet.Created?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "–")</dd>
+                                @if (isUp && selDet.Pid > 0) { <dt>Host PID</dt><dd>@selDet.Pid</dd> }
+                            </dl>
+                        </div>
+                        <div>
+                            <h4>Configuration</h4>
+                            <dl class="kv">
+                                <dt>Image</dt><dd>@sel.Image <span class="muted"><code>@DockerService.ShortId(selDet.ImageId)</code></span></dd>
+                                <dt>Command</dt><dd><code>@(sel.Command.Length > 0 ? sel.Command : "–")</code></dd>
+                                <dt>Memory limit</dt><dd>@(selDet.MemLimitBytes > 0 ? Bytes(selDet.MemLimitBytes) : "none (host memory)")</dd>
+                                <dt>CPU limit</dt><dd>@(selDet.CpuLimit > 0 ? $"{selDet.CpuLimit:0.##} CPUs" : "none")</dd>
+                                <dt>Ports</dt><dd><code>@(sel.Ports.Length > 0 ? sel.Ports : "–")</code></dd>
+                                @if (sel.Project.Length > 0) { <dt>Compose project</dt><dd>@sel.Project</dd> }
+                                @if (selInst is not null)
+                                {
+                                    <dt>DB Serve</dt><dd>@selInst.Name · @(Manager.GetProvider(selInst.DbmsKey)?.DisplayName) · database <code>@selInst.DatabaseName</code> on <code>127.0.0.1:@selInst.HostPort</code></dd>
+                                }
+                            </dl>
+                        </div>
+                        <div>
+                            <h4>Mounts</h4>
+                            @if (selDet.Mounts.Count == 0) { <p class="muted">None.</p> }
+                            else
+                            {
+                                <table class="table table--compact">
+                                    <thead><tr><th>Source</th><th>Destination</th><th>Size</th><th>Mode</th></tr></thead>
+                                    <tbody>
+                                    @foreach (var mt in selDet.Mounts)
+                                    {
+                                        var vol = mt.Name.Length > 0 ? _snap.Volumes.FirstOrDefault(v => v.Name == mt.Name) : null;
+                                        <tr>
+                                            <td><code>@(mt.Name.Length > 0 ? mt.Name : mt.Source)</code> <span class="muted small">@mt.Type</span></td>
+                                            <td><code>@mt.Destination</code></td>
+                                            <td class="small">@(vol is { Size.Length: > 0 } ? vol.Size : "–")</td>
+                                            <td class="small">@(mt.ReadWrite ? "rw" : "ro")</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            }
+                            <h4>Networks</h4>
+                            @if (selDet.Networks.Count == 0) { <p class="muted">None.</p> }
+                            else
+                            {
+                                <table class="table table--compact">
+                                    <thead><tr><th>Network</th><th>IP address</th><th>Gateway</th></tr></thead>
+                                    <tbody>
+                                    @foreach (var n in selDet.Networks)
+                                    {
+                                        <tr><td>@n.Network</td><td><code>@(n.Ip.Length > 0 ? n.Ip : "–")</code></td><td><code>@(n.Gateway.Length > 0 ? n.Gateway : "–")</code></td></tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="card__body">
+                    <pre class="logs @(_logWrap ? "" : "logs--nowrap")">@(_logText ?? "Loading…")</pre>
+                    @if (_view == "inspect") { <div class="muted small">Environment variable values are masked.</div> }
+                </div>
+            }
         </div>
     }
+
+    <div class="grid-2">
+        <div class="card panel">
+            <div class="panel__head">
+                <span>WSL host resources</span>
+                @if (_snap.Metrics is { } hm) { <strong>load @hm.Load1.ToString("0.00", CultureInfo.InvariantCulture)</strong> }
+            </div>
+            @if (_snap.Metrics is { } m)
+            {
+                var memUsed = m.MemTotalBytes - m.MemAvailableBytes;
+                var swapUsed = m.SwapTotalBytes - m.SwapFreeBytes;
+                <div class="disk">
+                    <div class="disk__row"><span>Memory</span><span class="muted">@Bytes(memUsed) / @Bytes(m.MemTotalBytes)</span></div>
+                    <div class="bar bar--lg"><div class="bar__fill bar__fill--teal" style="width:@Pct(memUsed, m.MemTotalBytes)%"></div></div>
+                </div>
+                @if (m.SwapTotalBytes > 0)
+                {
+                    <div class="disk">
+                        <div class="disk__row"><span>Swap</span><span class="muted">@Bytes(swapUsed) / @Bytes(m.SwapTotalBytes)</span></div>
+                        <div class="bar bar--lg"><div class="bar__fill bar__fill--purple" style="width:@Pct(swapUsed, m.SwapTotalBytes)%"></div></div>
+                    </div>
+                }
+                <div class="disk">
+                    <div class="disk__row"><span>Root disk</span><span class="muted">@Bytes(m.DiskUsedBytes) / @Bytes(m.DiskTotalBytes)</span></div>
+                    <div class="bar bar--lg"><div class="bar__fill" style="width:@Pct(m.DiskUsedBytes, m.DiskTotalBytes)%"></div></div>
+                </div>
+                @Spark(_loadHist, Math.Max(1, Math.Max(_loadHist.DefaultIfEmpty(0).Max(), _snap.Host?.Cpus ?? 1)), 420, 34, "spark--blue")
+                <div class="muted small">Load average 1/5/15 min: @m.Load1.ToString("0.00", CultureInfo.InvariantCulture) / @m.Load5.ToString("0.00", CultureInfo.InvariantCulture) / @m.Load15.ToString("0.00", CultureInfo.InvariantCulture) · uptime @Span(TimeSpan.FromSeconds(m.UptimeSeconds))</div>
+            }
+            else
+            {
+                <p class="muted">Host metrics are not available.</p>
+            }
+        </div>
+        <div class="card panel">
+            <div class="panel__head"><span>Recent events</span><span class="muted small">last hour</span></div>
+            @if (_snap.Events.Count == 0)
+            {
+                <p class="muted">No container events in the last hour.</p>
+            }
+            else
+            {
+                <ul class="events">
+                    @foreach (var ev in _snap.Events.Take(12))
+                    {
+                        <li>
+                            <span class="muted small">@ev.Time.ToLocalTime().ToString("HH:mm:ss")</span>
+                            <span class="chip chip--@EventClass(ev.Action)">@ev.Action</span>
+                            <span class="name">@ev.Name</span>
+                            @if (ev.Detail.Length > 0) { <span class="muted small">@ev.Detail</span> }
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
 
     <div class="grid-2">
         <div class="card panel">
@@ -248,6 +517,9 @@ else
                     <dt>Cgroup</dt><dd>v@(h2.CgroupVersion)</dd>
                     <dt>Root dir</dt><dd><code>@h2.RootDir</code></dd>
                     <dt>Hostname</dt><dd>@h2.HostName</dd>
+                    @if (h2.LoggingDriver.Length > 0) { <dt>Logging driver</dt><dd>@h2.LoggingDriver</dd> }
+                    @if (h2.DefaultRuntime.Length > 0) { <dt>Default runtime</dt><dd>@h2.DefaultRuntime</dd> }
+                    @foreach (var hw in h2.Warnings) { <dt>Warning</dt><dd>@hw</dd> }
                 </dl>
             }
         </div>
@@ -267,31 +539,35 @@ else
             <table class="table">
                 @if (_tab == "images")
                 {
-                    <thead><tr><th>Repository</th><th>Tag</th><th>ID</th><th>Size</th><th>Created</th></tr></thead>
+                    <thead><tr><th>Repository</th><th>Tag</th><th>ID</th><th>Size</th><th>Created</th><th>Used by</th></tr></thead>
                     <tbody>
                     @foreach (var i in _snap.Images)
                     {
-                        <tr><td>@i.Repository</td><td><code>@i.Tag</code></td><td><code>@i.Id</code></td><td>@i.Size</td><td class="muted">@i.Created</td></tr>
+                        <tr><td>@i.Repository</td><td><code>@i.Tag</code></td><td><code>@i.Id</code></td><td>@i.Size</td><td class="muted">@i.Created</td><td>@UsedBy(i.UsedBy)</td></tr>
                     }
                     </tbody>
                 }
                 else if (_tab == "volumes")
                 {
-                    <thead><tr><th>Name</th><th>Driver</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Driver</th><th>Size</th><th>Used by</th><th>Mountpoint</th></tr></thead>
                     <tbody>
                     @foreach (var v in _snap.Volumes)
                     {
-                        <tr><td><code>@v.Name</code></td><td>@v.Driver</td></tr>
+                        <tr><td><code>@v.Name</code></td><td>@v.Driver</td><td>@(v.Size.Length > 0 ? v.Size : "–")</td><td>@UsedBy(v.UsedBy)</td><td class="small"><code>@v.Mountpoint</code></td></tr>
                     }
                     </tbody>
                 }
                 else
                 {
-                    <thead><tr><th>Name</th><th>Driver</th><th>Scope</th><th>ID</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Driver</th><th>Scope</th><th>Subnet</th><th>Gateway</th><th>Attached</th><th>ID</th></tr></thead>
                     <tbody>
                     @foreach (var n in _snap.Networks)
                     {
-                        <tr><td>@n.Name</td><td>@n.Driver</td><td>@n.Scope</td><td><code>@n.Id</code></td></tr>
+                        <tr>
+                            <td>@n.Name@(n.Internal ? " (internal)" : "")</td><td>@n.Driver</td><td>@n.Scope</td>
+                            <td><code>@(n.Subnet.Length > 0 ? n.Subnet : "–")</code></td><td><code>@(n.Gateway.Length > 0 ? n.Gateway : "–")</code></td>
+                            <td>@UsedBy(n.Attached)</td><td><code>@n.Id</code></td>
+                        </tr>
                     }
                     </tbody>
                 }
@@ -304,7 +580,16 @@ else
     private const int MaxHistory = 60;
 
     private DockerSnapshot? _snap;
-    private bool _loading, _busy, _logWrap, _inspect;
+    private bool _loading, _busy, _logWrap;
+    private string _view = "details";
+    private IReadOnlyList<DbInstance>? _instances;
+    private readonly Dictionary<Guid, DbInsight> _insights = [];
+    private DateTime _insightsAt;
+    private bool _insightsBusy;
+    private readonly List<double> _rxRate = [], _txRate = [], _blkReadRate = [], _blkWriteRate = [], _loadHist = [];
+    private readonly Dictionary<string, List<double>> _memHist = [];
+    private DateTime _lastSample;
+    private double _lastRx, _lastTx, _lastBr, _lastBw;
     private bool _manual; // true only while a refresh started by the button is running
 
     private async Task ManualRefreshAsync()
@@ -380,6 +665,11 @@ else
                 _snap = snap;
                 _loadError = null;
                 if (snap.Error is null && snap.StatsOk) RecordHistory(snap);
+                if (snap.Error is null)
+                {
+                    try { _instances = await Manager.GetAllAsync(_cts.Token); } catch (Exception ex) when (ex is not OperationCanceledException) { }
+                    _ = RefreshInsightsAsync(forceNow && _manual);
+                }
             } while (_forcePending && !_disposed);
         }
         catch (OperationCanceledException) { }
@@ -398,18 +688,93 @@ else
             if (!_disposed) StateHasChanged();
         }
     }
+    private async Task RefreshInsightsAsync(bool force)
+    {
+        if (_insightsBusy || _disposed || _instances is null || _snap is null) return;
+        if (!force && _insightsAt != default && DateTime.UtcNow - _insightsAt < TimeSpan.FromSeconds(30)) return;
+        var running = _instances
+            .Where(i => _snap.Containers.Any(c => c.Name == i.ContainerName && c.State == "running"))
+            .ToList();
+        _insightsBusy = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var results = await Task.WhenAll(running.Select(async i => (i.Id, Insight: await Insights.GetAsync(i, _cts.Token))));
+            foreach (var (id, insight) in results) _insights[id] = insight;
+            _insightsAt = DateTime.Now;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { }
+        finally
+        {
+            _insightsBusy = false;
+            if (!_disposed) await InvokeAsync(StateHasChanged);
+        }
+    }
+
     private void RecordHistory(DockerSnapshot snap)
     {
         Push(_fleetCpu, snap.Stats.Sum(s => s.CpuPercent));
         Push(_fleetMem, snap.Stats.Sum(s => s.MemUsedBytes));
+        if (snap.Metrics is { } hm) Push(_loadHist, hm.Load1);
+
+        var rx = snap.Stats.Sum(s => s.NetRxBytes);
+        var tx = snap.Stats.Sum(s => s.NetTxBytes);
+        var br = snap.Stats.Sum(s => s.BlockReadBytes);
+        var bw = snap.Stats.Sum(s => s.BlockWriteBytes);
+        if (_lastSample != default && snap.Timestamp > _lastSample)
+        {
+            var secs = (snap.Timestamp - _lastSample).TotalSeconds;
+            Push(_rxRate, Math.Max(0, rx - _lastRx) / secs);
+            Push(_txRate, Math.Max(0, tx - _lastTx) / secs);
+            Push(_blkReadRate, Math.Max(0, br - _lastBr) / secs);
+            Push(_blkWriteRate, Math.Max(0, bw - _lastBw) / secs);
+        }
+        if (snap.Timestamp > _lastSample)
+        {
+            _lastSample = snap.Timestamp;
+            (_lastRx, _lastTx, _lastBr, _lastBw) = (rx, tx, br, bw);
+        }
+
         var ids = snap.Stats.Select(s => s.Id).ToHashSet();
-        foreach (var k in _cpuHist.Keys.Where(k => !ids.Contains(k)).ToList()) _cpuHist.Remove(k);
+        foreach (var k in _cpuHist.Keys.Where(k => !ids.Contains(k)).ToList()) { _cpuHist.Remove(k); _memHist.Remove(k); }
         foreach (var s in snap.Stats)
         {
             if (!_cpuHist.TryGetValue(s.Id, out var list)) _cpuHist[s.Id] = list = [];
             Push(list, s.CpuPercent);
+            if (!_memHist.TryGetValue(s.Id, out var ml)) _memHist[s.Id] = ml = [];
+            Push(ml, s.MemPercent);
         }
     }
+
+    private static string Pct(double part, double total) =>
+        (total > 0 ? Math.Clamp(part / total * 100, 0, 100) : 0).ToString("0", CultureInfo.InvariantCulture);
+
+    private static string Rate(double bytesPerSecond) => Bytes(bytesPerSecond) + "/s";
+
+    private static string Span(TimeSpan t)
+    {
+        if (t < TimeSpan.Zero) t = TimeSpan.Zero;
+        if (t.TotalDays >= 1) return $"{(int)t.TotalDays}d {t.Hours}h";
+        if (t.TotalHours >= 1) return $"{t.Hours}h {t.Minutes}m";
+        return t.TotalMinutes >= 1 ? $"{t.Minutes}m {t.Seconds}s" : $"{t.Seconds}s";
+    }
+
+    private static string Trunc(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+
+    private static string EventClass(string action) => action switch
+    {
+        "start" or "unpause" or "create" => "pass",
+        "die" or "kill" or "oom" or "destroy" => "fail",
+        _ when action.StartsWith("health_status: healthy", StringComparison.Ordinal) => "pass",
+        _ when action.StartsWith("health_status: unhealthy", StringComparison.Ordinal) => "fail",
+        _ => "unknown",
+    };
+
+    private static MarkupString UsedBy(IReadOnlyList<string> names) =>
+        names.Count == 0
+            ? new MarkupString("<span class=\"muted\">unused</span>")
+            : new MarkupString(string.Join(' ', names.Select(n => $"<span class=\"tag\">{System.Net.WebUtility.HtmlEncode(n)}</span>")));
 
     private static void Push(List<double> list, double v)
     {
@@ -467,10 +832,11 @@ else
         finally { _busy = false; }
         await RefreshAsync(force: true);
     }
-    private async Task SelectAsync(string id, bool inspect)
+    private async Task SelectAsync(string? id, string view)
     {
+        if (id is null) return;
         _selected = id;
-        _inspect = inspect;
+        _view = view;
         _logText = null;
         StateHasChanged();
         await LoadDetailAsync();
@@ -478,16 +844,16 @@ else
 
     private async Task LoadDetailAsync()
     {
-        if (_selected is null) return;
+        if (_selected is null || _view == "details") return;
         var id = _selected;
-        var inspect = _inspect;
+        var view = _view;
         try
         {
-            var text = inspect
+            var text = view == "inspect"
                 ? await Docker.GetInspectAsync(id, _cts.Token)
                 : await Docker.GetLogsAsync(id, 200, _cts.Token);
             // Ignore a slow response if the user switched container or view meanwhile.
-            if (_selected == id && _inspect == inspect) _logText = text;
+            if (_selected == id && _view == view) _logText = text;
         }
         catch (OperationCanceledException) { }
     }

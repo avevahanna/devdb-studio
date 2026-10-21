@@ -16,19 +16,47 @@ public sealed record ContainerStat(
     double NetRxBytes, double NetTxBytes, double BlockReadBytes, double BlockWriteBytes, int Pids);
 
 public sealed record DiskUsage(string Type, int Total, int Active, string Size, string Reclaimable);
-public sealed record ImageInfo(string Id, string Repository, string Tag, string Size, string Created);
-public sealed record VolumeInfo(string Name, string Driver);
-public sealed record NetworkInfo(string Id, string Name, string Driver, string Scope);
+public sealed record ImageInfo(string Id, string Repository, string Tag, string Size, string Created)
+{
+    public IReadOnlyList<string> UsedBy { get; init; } = [];
+}
+public sealed record VolumeInfo(string Name, string Driver)
+{
+    public string Mountpoint { get; init; } = "";
+    public string Size { get; init; } = "";
+    public IReadOnlyList<string> UsedBy { get; init; } = [];
+}
+public sealed record NetworkInfo(string Id, string Name, string Driver, string Scope)
+{
+    public string Subnet { get; init; } = "";
+    public string Gateway { get; init; } = "";
+    public bool Internal { get; init; }
+    public IReadOnlyList<string> Attached { get; init; } = [];
+}
 
 public sealed record HostInfo(
     string ServerVersion, string OperatingSystem, string Kernel, string Architecture, int Cpus,
-    double MemTotalBytes, string StorageDriver, string RootDir, string CgroupVersion, string HostName);
+    double MemTotalBytes, string StorageDriver, string RootDir, string CgroupVersion, string HostName)
+{
+    public string LoggingDriver { get; init; } = "";
+    public string DefaultRuntime { get; init; } = "";
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
 
 public sealed record DockerSnapshot(
     DateTime Timestamp, HostInfo? Host, IReadOnlyList<ContainerInfo> Containers, IReadOnlyList<ContainerStat> Stats,
     IReadOnlyList<DiskUsage> Disk, IReadOnlyList<ImageInfo> Images, IReadOnlyList<VolumeInfo> Volumes,
     IReadOnlyList<NetworkInfo> Networks, string? Error, TimeSpan Elapsed,
-    IReadOnlyList<string> Warnings, bool StatsOk);
+    IReadOnlyList<string> Warnings, bool StatsOk)
+{
+    /// <summary>Inspect data per container, keyed by the 12-character short id.</summary>
+    public IReadOnlyDictionary<string, ContainerDetail> Details { get; init; } = new Dictionary<string, ContainerDetail>();
+    public HostMetrics? Metrics { get; init; }
+    public IReadOnlyList<DockerEvent> Events { get; init; } = [];
+
+    public ContainerDetail? DetailFor(string containerId) =>
+        Details.TryGetValue(DockerService.ShortId(containerId), out var d) ? d : null;
+}
 
 public enum ContainerAction { Start, Stop, Restart, Pause, Unpause, Kill, Remove }
 
@@ -92,6 +120,7 @@ public sealed partial class DockerService : IDockerService
         _last = null;
         _fastAt = _slowAt = DateTime.MinValue;
         _containers = []; _disk = []; _images = []; _volumes = []; _networks = [];
+        ResetExtras();
         _warnings.Clear();
     }
 
@@ -123,18 +152,28 @@ public sealed partial class DockerService : IDockerService
 
             var ps = Docker(ct, null, "ps", "-a", "--format", "json");
             var stats = Docker(ct, SlowTimeout, "stats", "--no-stream", "--format", "json");
+            var metrics = FetchHostMetricsAsync(ct);
             Task<ProcessResult>? df = null, images = null, volumes = null, networks = null;
+            Task<Dictionary<string, string>?>? volumeSizes = null;
+            Task<IReadOnlyList<DockerEvent>?>? events = null;
             if (refreshSlow)
             {
                 df = Docker(ct, SlowTimeout, "system", "df", "--format", "json");
                 images = Docker(ct, null, "images", "--format", "json");
                 volumes = Docker(ct, null, "volume", "ls", "--format", "json");
                 networks = Docker(ct, null, "network", "ls", "--format", "json");
+                volumeSizes = FetchVolumeSizesAsync(ct);
+                events = FetchEventsAsync(ct);
             }
-            await Task.WhenAll(new Task[] { ps, stats }.Concat(new[] { df, images, volumes, networks }.OfType<Task>()));
+            await Task.WhenAll(new Task[] { ps, stats, metrics }.Concat(new Task?[] { df, images, volumes, networks, volumeSizes, events }.OfType<Task>()));
 
             // Failed sections keep their last good data; the warning stays until that section succeeds again.
             Update(ps.Result, "Containers", ParseContainer, ref _containers);
+
+            // Inspect is heavier than ps, so it only reruns when the container set or a state changed (or on a slow refresh).
+            var sig = string.Join('|', _containers.Select(c => c.Id + ":" + c.State));
+            if (refreshSlow || sig != _detailSig)
+                if (await RefreshDetailsAsync(_containers, ct)) _detailSig = sig;
 
             var statsOk = stats.Result.ExitCode == 0;
             IReadOnlyList<ContainerStat> statList = statsOk ? Lines(stats.Result, ParseStat) : [];
@@ -146,13 +185,21 @@ public sealed partial class DockerService : IDockerService
                 ok &= Update(images!.Result, "Images", ParseImage, ref _images);
                 ok &= Update(volumes!.Result, "Volumes", ParseVolume, ref _volumes);
                 ok &= Update(networks!.Result, "Networks", ParseNetwork, ref _networks);
+                if (volumeSizes!.Result is { } vs) _volumeSizes = vs;
+                if (events!.Result is { } ev) _events = ev;
+                if (networks.Result.ExitCode == 0) _netExtra = await FetchNetworkExtraAsync(_networks, ct);
                 // Retry on the next call instead of serving stale data for the whole TTL.
                 if (ok) _slowAt = DateTime.UtcNow;
             }
 
             _fastAt = DateTime.UtcNow;
             return _last = new DockerSnapshot(DateTime.Now, ParseHost(info.StdOut), _containers, statList,
-                _disk, _images, _volumes, _networks, null, sw.Elapsed, _warnings.Values.ToList(), statsOk);
+                _disk, EnrichImages(), EnrichVolumes(), EnrichNetworks(), null, sw.Elapsed, _warnings.Values.ToList(), statsOk)
+            {
+                Details = _details,
+                Metrics = metrics.Result,
+                Events = _events,
+            };
         }
         finally { _gate.Release(); }
     }
@@ -360,10 +407,20 @@ public sealed partial class DockerService : IDockerService
                 var os = $"{S(distro, "distribution")} {S(distro, "version")}".Trim();
                 return new HostInfo(S(version, "version"), os.Length > 0 ? os : S(host, "os"), S(host, "kernel"), S(host, "arch"),
                     (int)N(host, "cpus"), N(host, "memtotal"), S(store, "graphdrivername"), S(store, "graphroot"),
-                    S(host, "cgroupversion"), S(host, "hostname"));
+                    S(host, "cgroupversion"), S(host, "hostname"))
+                {
+                    LoggingDriver = S(host, "logdriver"),
+                    DefaultRuntime = S(Find(host, ["ociruntime"]) ?? default, "name"),
+                };
             }
             return new HostInfo(S(e, "serverversion"), S(e, "operatingsystem"), S(e, "kernelversion"), S(e, "architecture"),
-                (int)N(e, "ncpu"), N(e, "memtotal"), S(e, "driver"), S(e, "dockerrootdir"), S(e, "cgroupversion"), S(e, "name"));
+                (int)N(e, "ncpu"), N(e, "memtotal"), S(e, "driver"), S(e, "dockerrootdir"), S(e, "cgroupversion"), S(e, "name"))
+            {
+                LoggingDriver = S(e, "loggingdriver"),
+                DefaultRuntime = S(e, "defaultruntime"),
+                Warnings = Find(e, ["warnings"]) is { ValueKind: JsonValueKind.Array } w
+                    ? w.EnumerateArray().Select(x => Text(x)).Where(x => x.Length > 0).ToList() : [],
+            };
         }
         catch (JsonException) { return null; }
     }
@@ -428,7 +485,7 @@ public sealed partial class DockerService : IDockerService
         return new(S(e, "id"), repo, tag, SizeText(e, "size"), EpochOrText(e, "createdsince", "createdat", "created"));
     }
 
-    private static VolumeInfo ParseVolume(JsonElement e) => new(S(e, "name"), S(e, "driver"));
+    private static VolumeInfo ParseVolume(JsonElement e) => new(S(e, "name"), S(e, "driver")) { Mountpoint = S(e, "mountpoint") };
 
     private static NetworkInfo ParseNetwork(JsonElement e)
     {

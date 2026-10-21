@@ -317,6 +317,22 @@ td .spark { width: 90px; margin-top: 2px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; word-break: break-all; }
 
+.detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; }
+.detail h4 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.detail h4:not(:first-child) { margin-top: 18px; }
+.table--compact th, .table--compact td { padding: 6px 10px; }
+.tile__sub { color: var(--muted); font-size: 12px; min-height: 16px; }
+.tag { display: inline-block; border-radius: 6px; padding: 1px 8px; margin: 1px 2px 1px 0; font-size: 12px; background: var(--neutral-bg); color: var(--text); }
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.events li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.io { white-space: nowrap; }
+.chip--warn { background: var(--warn-bg, #fff4d6); color: var(--warn, #8a5a00); }
+.chip--brand { background: rgba(48, 81, 219, .12); color: #3051db; font-size: 11.5px; padding: 2px 10px; margin-top: 4px; }
+[data-theme="dark"] .chip--brand { color: #9db0ff; }
+.actions--wrap { white-space: normal; min-width: 190px; }
+.actions--wrap .btn { margin: 2px 0 2px 4px; }
+.app-content:has(.page-header--wide) { max-width: 2200px; }
+
 /* ---------- Instance cards ---------- */
 .inst-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 22px; align-items: start; }
 .inst {
