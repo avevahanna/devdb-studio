@@ -17,6 +17,7 @@ Built with .NET 10 Blazor Server (interactive server rendering), running on Wind
   - Inserts run in a single transaction, so a failure leaves the table unchanged. `CHECK` constraints are not known to the generator and can still cause a failure.
   - Clearing uses `TRUNCATE`, or `DELETE` plus an identity/sequence reset when other tables reference the table (it fails if rows there still point at the table).
 - **Status** (`/status`) – live container engine statistics (CPU/memory, network and disk throughput, containers, images, volumes, networks, disk usage) with auto-refresh, plus container administration (start, stop, restart, pause, kill, remove, logs, inspect). It also shows per-container details (uptime, restarts, OOM, health, mounts, IPs), live database insights per instance (connections, databases, data size), WSL host resources (load, memory, swap, disk), recent container events, and which containers use each image, volume and network. Podman data sources are best-effort.
+- **Help** (`/help`) – usage guide, page descriptions, a card per DBMS (logo, defaults, client, example), connection addresses and troubleshooting.
 - **Light/dark theme** – toggle in the top bar; defaults to your OS preference and remembers your choice. DBMS icons are served from `wwwroot/icons`. The sidebar layout, palette (blue `#3051db`, purple `#6b04a8`) and fonts (Mulish, Barlow) follow the AVEVA look.
 - **Getting started** – `/` opens the Instances page, which shows a four-step checklist (prerequisites → instance → table → data) until the first instance exists.
 

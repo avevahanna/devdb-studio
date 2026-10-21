@@ -9,6 +9,10 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.4.0
+
+- New **Help** page (`/help`, under a new "Help" section in the sidebar below "System"): step-by-step usage guide, a description of every page, a card per DBMS with its logo, defaults, client and example, connection addresses, data handling and troubleshooting.
+
 ## 1.3.1
 
 - DBMS badges use the new SVG logos (replacing the PNG/placeholder icons) in a larger rounded white tile that stays readable in every theme.

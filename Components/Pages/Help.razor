@@ -1,0 +1,236 @@
+@page "/help"
+
+<PageTitle>Help</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Help</h1>
+        <p>How to use DB Serve, and what to know about each supported database system.</p>
+    </div>
+</div>
+
+<div class="help">
+    <nav class="help__toc" aria-label="On this page">
+        <div class="help__toc-title">On this page</div>
+        <a href="help#overview">Overview</a>
+        <a href="help#getting-started">Getting started</a>
+        <a href="help#pages">The pages</a>
+        <a href="help#dbms">Database systems</a>
+        <a href="help#connect">Connecting from your tools</a>
+        <a href="help#data">Data, backups and deleting</a>
+        <a href="help#troubleshooting">Troubleshooting</a>
+    </nav>
+
+    <div class="help__body">
+        <section id="overview" class="card help__section">
+            <h2>Overview</h2>
+            <p>
+                DB Serve creates and manages <strong>database servers as containers</strong>. Each server runs in Docker or Podman
+                inside a WSL2 Linux distro on this computer. Pick a database system, give it a password, and it is ready in a minute.
+                Nothing is installed on Windows itself.
+            </p>
+            <div class="help__facts">
+                <div><strong>Local only</strong><span>Every server is published on <code>127.0.0.1</code>, so only this computer can reach it.</span></div>
+                <div><strong>Persistent</strong><span>Data lives in a named volume and survives stop, start and restart.</span></div>
+                <div><strong>Seven systems</strong><span>SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB and Redis.</span></div>
+            </div>
+        </section>
+
+        <section id="getting-started" class="card help__section">
+            <h2>Getting started</h2>
+            <ol class="steps">
+                <li>
+                    <h3>Check the setup</h3>
+                    <p>Open <a href="setup">Setup</a>. It checks that WSL2, a Linux distro and Docker or Podman are available. The distro and engine are detected automatically; override them with the selectors on that page if you have several. Follow the install hints for anything marked as failed, then run the check again.</p>
+                </li>
+                <li>
+                    <h3>Create a server</h3>
+                    <p>Go to <a href="instances">Instances</a> and choose <strong>Create instance</strong>. Fill in:</p>
+                    <ul>
+                        <li><strong>Name</strong> – a label for you; it is not the database name.</li>
+                        <li><strong>Database system</strong> – see <a href="help#dbms">Database systems</a> below.</li>
+                        <li><strong>Host port</strong> – the port on <code>127.0.0.1</code>. A free default is suggested; each server needs its own.</li>
+                        <li><strong>Password</strong> – the form shows the requirements as you type.</li>
+                        <li><strong>Database name</strong> – the database created at start (not used for Redis).</li>
+                        <li><strong>Image tag</strong> – the version to run. The default is a good choice; the first start downloads the image, which can take several minutes.</li>
+                    </ul>
+                </li>
+                <li>
+                    <h3>Run a query</h3>
+                    <p>Open <a href="query">Query</a>, choose the instance, and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd>. Each system has a ready-made sample query.</p>
+                </li>
+                <li>
+                    <h3>Connect your own tools</h3>
+                    <p>Copy the connection string from the instance card and use it in your application or database client.</p>
+                </li>
+            </ol>
+        </section>
+
+        <section id="pages" class="card help__section">
+            <h2>The pages</h2>
+            <div class="help__grid">
+                <article class="help__tile">
+                    <h3><a href="instances">Instances</a></h3>
+                    <p>Lists every server with its status. <strong>Start</strong>, <strong>Stop</strong> and <strong>Delete</strong> it, copy the connection string (the password is masked on screen, but the copy button copies the real one), and open the Query or Design table shortcuts.</p>
+                </article>
+                <article class="help__tile">
+                    <h3><a href="query">Query</a></h3>
+                    <p>Run SQL, mongosh or redis-cli commands. Pick the database from the list, view results as a table or as raw output, and download tables as <strong>CSV</strong> or <strong>JSON</strong>. The last 20 queries per instance are kept as history, and you can save named snippets. Both are stored in your browser only.</p>
+                </article>
+                <article class="help__tile">
+                    <h3><a href="tables">Tables</a></h3>
+                    <p>Design a table without writing SQL: add columns, types, keys and nullability, preview the generated statement, then create it. The SQL differs per system; DB Serve generates the right dialect.</p>
+                </article>
+                <article class="help__tile">
+                    <h3><a href="data">Table data</a></h3>
+                    <p>Fill a table with <strong>1 – 10,000 random rows</strong> for testing, or clear all its data after a confirmation.</p>
+                </article>
+                <article class="help__tile">
+                    <h3><a href="setup">Setup</a></h3>
+                    <p>Checks prerequisites and lets you choose the WSL distro and the container engine. The choices are saved.</p>
+                </article>
+                <article class="help__tile">
+                    <h3><a href="status">Status</a></h3>
+                    <p>Live health of all servers: state, uptime, resource use, and figures read from inside each database such as connections, number of databases and size.</p>
+                </article>
+            </div>
+            <div class="callout">
+                <strong>Which pages work with which system?</strong>
+                Query and Status work for all seven. Tables and Table data are for the SQL systems only; for MongoDB and Redis, use the Query page.
+            </div>
+        </section>
+
+        <section id="dbms" class="card help__section">
+            <h2>Database systems</h2>
+            <p class="help__lead">Each system runs from an official image. Defaults are shown below and can be changed when you create the instance.</p>
+            <div class="dbms-list">
+                @foreach (var d in Systems)
+                {
+                    <article class="dbms-card" id="@d.Id">
+                        <header class="dbms-card__head">
+                            <span class="dbms-card__logo"><img src="icons/@d.Icon" alt="" /></span>
+                            <div>
+                                <h3>@d.Name</h3>
+                                <span class="dbms-card__kind">@d.Kind</span>
+                            </div>
+                        </header>
+                        <p>@d.About</p>
+                        <dl class="dbms-card__facts">
+                            <div><dt>Image</dt><dd><code>@d.Image</code></dd></div>
+                            <div><dt>Default tag</dt><dd><code>@d.Tag</code></dd></div>
+                            <div><dt>Port</dt><dd><code>@d.Port</code></dd></div>
+                            <div><dt>User</dt><dd><code>@d.User</code></dd></div>
+                            <div><dt>Query with</dt><dd>@d.Client</dd></div>
+                            <div><dt>Tables &amp; data</dt><dd>@(d.Tables ? "Yes" : "No, use Query")</dd></div>
+                        </dl>
+                        <div class="dbms-card__tip"><strong>Tip</strong> @((MarkupString)d.Tip)</div>
+                        <div class="dbms-card__example">
+                            <span>Example</span>
+                            <pre>@d.Example</pre>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section id="connect" class="card help__section">
+            <h2>Connecting from your tools</h2>
+            <p>Use <code>127.0.0.1</code> and the host port you chose. Avoid <code>localhost</code>, which can resolve to IPv6 where the container is not listening.</p>
+            <table class="help__table">
+                <thead><tr><th>System</th><th>Address</th></tr></thead>
+                <tbody>
+                    <tr><td>SQL Server</td><td><code>127.0.0.1,&lt;port&gt;</code> (comma, not colon), user <code>sa</code></td></tr>
+                    <tr><td>PostgreSQL, TimescaleDB</td><td><code>127.0.0.1:&lt;port&gt;</code>, user <code>postgres</code></td></tr>
+                    <tr><td>MariaDB, MySQL</td><td><code>127.0.0.1:&lt;port&gt;</code>, user <code>root</code></td></tr>
+                    <tr><td>MongoDB</td><td><code>mongodb://root:…@@127.0.0.1:&lt;port&gt;/&lt;db&gt;?authSource=admin</code></td></tr>
+                    <tr><td>Redis</td><td><code>redis://:…@@127.0.0.1:&lt;port&gt;/0</code></td></tr>
+                </tbody>
+            </table>
+            <p class="muted">The connection string on the instance card is complete and correctly escaped. Prefer it over typing one by hand.</p>
+        </section>
+
+        <section id="data" class="card help__section">
+            <h2>Data, backups and deleting</h2>
+            <ul>
+                <li><strong>Stop</strong> keeps everything. <strong>Start</strong> brings the server back with its data.</li>
+                <li><strong>Delete</strong> removes the container. You choose whether the data volume is deleted too; keep it if you may want the data again.</li>
+                <li>Containers belong to the engine that created them. After switching between Docker and Podman, instances from the other engine show as <em>not found</em> until you switch back.</li>
+                <li>This tool is meant for development and testing. Back up anything valuable with the database's own tools.</li>
+            </ul>
+        </section>
+
+        <section id="troubleshooting" class="card help__section">
+            <h2>Troubleshooting</h2>
+            <dl class="faq">
+                <div>
+                    <dt>Creation fails with "port is already allocated"</dt>
+                    <dd>Another server or program uses that port. Pick a different host port.</dd>
+                </div>
+                <div>
+                    <dt>The first start takes a long time</dt>
+                    <dd>The image is downloaded once. SQL Server and TimescaleDB are large. Later starts take seconds.</dd>
+                </div>
+                <div>
+                    <dt>The password is rejected</dt>
+                    <dd>Follow the requirements shown under the password field. SQL Server has the strictest rules.</dd>
+                </div>
+                <div>
+                    <dt>Setup shows a failed check</dt>
+                    <dd>Read the hint next to it, fix it in your WSL distro, and run the check again. Choose a specific distro or engine on the Setup page if auto-detection picks the wrong one.</dd>
+                </div>
+                <div>
+                    <dt>An instance shows "not found"</dt>
+                    <dd>It was created with another container engine or distro. Switch back on the Setup page, or delete the entry.</dd>
+                </div>
+                <div>
+                    <dt>The Query page shows an error in plain text (MongoDB, Redis)</dt>
+                    <dd>These systems report errors as text. Check the command syntax and that the right database is selected.</dd>
+                </div>
+            </dl>
+        </section>
+    </div>
+</div>
+
+@code {
+    private sealed record Sys(string Id, string Name, string Icon, string Kind, string About, string Image, string Tag,
+        string Port, string User, string Client, bool Tables, string Tip, string Example);
+
+    private static readonly Sys[] Systems =
+    [
+        new("mssql", "Microsoft SQL Server", "mssql.svg", "Relational · T-SQL",
+            "Microsoft's enterprise relational database. Choose it when your system uses T-SQL, stored procedures or SQL Server tooling such as SSMS.",
+            "mcr.microsoft.com/mssql/server", "2022-latest", "1433", "sa", "sqlcmd", true,
+            "The password must be at least 8 characters with three of: upper case, lower case, digits and symbols. The server needs about 2 GB of memory.",
+            "SELECT @@VERSION AS version;"),
+        new("postgres", "PostgreSQL", "postgresql.svg", "Relational · SQL",
+            "A powerful open-source relational database with strong standards support, rich data types and JSON.",
+            "docker.io/library/postgres", "17", "5432", "postgres", "psql", true,
+            "Each database is separate; pick it from the database list on the Query page. Tables are created in the <code>public</code> schema by default.",
+            "SELECT version();"),
+        new("timescaledb", "TimescaleDB", "timescale.svg", "Time-series · SQL (PostgreSQL)",
+            "PostgreSQL with the time-series extension. Ideal for sensor data, metrics and events that are stored and queried by time.",
+            "docker.io/timescale/timescaledb", "latest-pg17", "5432", "postgres", "psql", true,
+            "Give each time-series table a timestamp column named <code>time</code> and turn it into a hypertable to get time-based partitioning.",
+            "CREATE TABLE readings (time timestamptz NOT NULL, tag text, value double precision);\nSELECT create_hypertable('readings', 'time');"),
+        new("mariadb", "MariaDB", "mariadb.svg", "Relational · SQL",
+            "A community-developed, MySQL-compatible relational database.",
+            "docker.io/library/mariadb", "11", "3306", "root", "mariadb client", true,
+            "In MariaDB a schema and a database are the same thing, so the table designer asks only for the database.",
+            "SELECT VERSION() AS version;"),
+        new("mysql", "MySQL", "mysql.svg", "Relational · SQL",
+            "The widely used open-source relational database. It behaves like MariaDB in this tool.",
+            "docker.io/library/mysql", "8.4", "3306", "root", "mysql client", true,
+            "If MariaDB and MySQL both run, give them different host ports; they share the default 3306.",
+            "SELECT VERSION() AS version;"),
+        new("mongodb", "MongoDB", "mongodb.svg", "Document · NoSQL",
+            "A document database that stores flexible JSON-like documents in collections, with no fixed schema.",
+            "docker.io/library/mongo", "8", "27017", "root", "mongosh (JavaScript)", false,
+            "A database appears in the list only after it holds data. Collections are created automatically on first insert.",
+            "db.customers.insertOne({ name: \"Anna\", age: 30 })\ndb.customers.find().toArray()"),
+        new("redis", "Redis", "redis.svg", "Key-value · NoSQL",
+            "A fast in-memory key-value store used for caching, queues and sessions. Data is also written to disk (append-only file).",
+            "docker.io/library/redis", "8", "6379", "default (password only)", "redis-cli (one command per line)", false,
+            "Redis has numbered databases 0–15 instead of named ones, so the create form has no database name. Pick the number on the Query page.",
+            "SET greeting \"Hello\"\nGET greeting\nKEYS *"),
+    ];
+}
