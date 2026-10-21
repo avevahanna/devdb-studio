@@ -63,7 +63,7 @@ public sealed class InstanceManager(
     private static InstanceStatus MapState(string state) => state switch
     {
         "running" or "restarting" or "paused" => InstanceStatus.Running,
-        "exited" or "created" or "dead" => InstanceStatus.Stopped,
+                "exited" or "created" or "dead" or "stopped" or "configured" => InstanceStatus.Stopped,
         _ => InstanceStatus.Unknown
     };
 

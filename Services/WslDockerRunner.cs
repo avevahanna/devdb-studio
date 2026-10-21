@@ -2,18 +2,21 @@ using Microsoft.Extensions.Options;
 
 namespace DbServeApp.Services;
 
-/// <summary>Runs docker inside the configured WSL distro. All Docker access for DBMS management goes through this.</summary>
+/// <summary>Runs the container engine (docker or podman) inside the configured WSL distro. All engine access for DBMS management goes through this.</summary>
 public interface IWslDockerRunner
 {
-    /// <param name="dockerArgs">Arguments after "docker"; passed as discrete tokens (no shell).</param>
+    /// <param name="dockerArgs">Arguments after the engine executable; passed as discrete tokens (no shell).</param>
     Task<ProcessResult> RunAsync(IEnumerable<string> dockerArgs, TimeSpan? timeout = null, string? stdin = null, CancellationToken ct = default);
 }
 
-public sealed class WslDockerRunner(IOptions<WslOptions> options) : IWslDockerRunner
+public sealed class WslDockerRunner(IOptions<WslOptions> options, IContainerEngine engine) : IWslDockerRunner
 {
     private readonly WslOptions _opt = options.Value;
 
-    public Task<ProcessResult> RunAsync(IEnumerable<string> dockerArgs, TimeSpan? timeout = null, string? stdin = null, CancellationToken ct = default) =>
-        ProcessRunner.RunAsync("wsl.exe", ["-d", _opt.DistroName, "--exec", "docker", .. dockerArgs],
+    public async Task<ProcessResult> RunAsync(IEnumerable<string> dockerArgs, TimeSpan? timeout = null, string? stdin = null, CancellationToken ct = default)
+    {
+        var exe = await engine.GetExecutableAsync(ct);
+        return await ProcessRunner.RunAsync("wsl.exe", ["-d", _opt.DistroName, "--exec", exe, .. dockerArgs],
             timeout ?? TimeSpan.FromSeconds(Math.Max(_opt.CommandTimeoutSeconds, 15)), ct, stdin);
+    }
 }

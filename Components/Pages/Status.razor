@@ -7,9 +7,9 @@
 
 <div class="page-header">
     <div>
-        <h1>Docker status</h1>
+        <h1>Container status</h1>
         <p>
-            Live statistics from Docker in WSL.
+            Live statistics from the container engine in WSL.
             @if (_snap is not null)
             {
                 <span>Updated @_snap.Timestamp.ToString("HH:mm:ss") · fetched in @_snap.Elapsed.TotalSeconds.ToString("0.0")s</span>
@@ -49,13 +49,13 @@
 
 @if (_snap is null)
 {
-    <div class="card"><div class="card__note" style="padding-top:14px">Loading Docker statistics…</div></div>
+    <div class="card"><div class="card__note" style="padding-top:14px">Loading container statistics…</div></div>
 }
 else if (_snap.Error is not null)
 {
     <div class="banner banner--error">
         <div>
-            <strong>Docker is not reachable</strong>
+            <strong>The container engine is not reachable</strong>
             <div>@_snap.Error</div>
         </div>
         <a class="btn btn-primary" href="/setup">Open setup</a>
@@ -234,7 +234,7 @@ else
             }
         </div>
         <div class="card panel">
-            <div class="panel__head"><span>Docker host</span></div>
+            <div class="panel__head"><span>Container host</span></div>
             @if (_snap.Host is { } h2)
             {
                 <dl class="kv">

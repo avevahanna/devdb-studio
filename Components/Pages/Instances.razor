@@ -33,7 +33,7 @@
 {
     <div class="banner banner--error">
         <div>
-            <strong>Docker is not reachable — statuses are unknown</strong>
+            <strong>The container engine is not reachable — statuses are unknown</strong>
             <pre class="logs">@_dockerError</pre>
         </div>
         <a class="btn btn-primary" href="/setup">Open setup</a>
@@ -74,7 +74,7 @@ else
             <ConnectionStringBox Build="mask => Manager.BuildConnectionString(i, mask)" />
             @if (i.Status == InstanceStatus.NotFound)
             {
-                <p class="muted">The container no longer exists in Docker. Delete this entry to clean up.</p>
+                <p class="muted">The container no longer exists in the container engine. Delete this entry to clean up.</p>
             }
             <footer class="inst__actions">
                 @if (i.Status == InstanceStatus.Running)

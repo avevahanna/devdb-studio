@@ -11,6 +11,8 @@ public sealed class WslOptions
     public int ColdStartTimeoutSeconds { get; set; } = 60;
     // Holds a wsl.exe session open so WSL doesn't shut down the VM (and kill containers) while idle.
     public bool KeepAlive { get; set; } = true;
+    // Auto, Docker or Podman. A choice saved from the Setup page (settings.json) overrides this.
+    public string ContainerEngine { get; set; } = "Auto";
 }
 
 public sealed record CheckResult(
@@ -22,17 +24,18 @@ public interface IPrerequisiteCheckService
     Task<IReadOnlyList<CheckResult>> RunChecksAsync(CancellationToken ct = default);
 }
 
-public sealed class PrerequisiteCheckService(IOptions<WslOptions> options) : IPrerequisiteCheckService
+public sealed class PrerequisiteCheckService(IOptions<WslOptions> options, IContainerEngine engine) : IPrerequisiteCheckService
 {
     private const string Wsl = "wsl.exe";
     private readonly WslOptions _opt = options.Value;
+    private readonly IContainerEngine _engine = engine;
 
     public async Task<IReadOnlyList<CheckResult>> RunChecksAsync(CancellationToken ct = default)
     {
         var d = _opt.DistroName;
         var results = new List<CheckResult>();
 
-        var wsl = await Run("wsl", "WSL available", "Docker for this app runs inside WSL2, which must be installed.",
+        var wsl = await Run("wsl", "WSL available", "The container engine for this app runs inside WSL2, which must be installed.",
             ["--status"], r => r.ExitCode == 0,
             """
             1. Open **PowerShell as Administrator**.
@@ -41,7 +44,7 @@ public sealed class PrerequisiteCheckService(IOptions<WslOptions> options) : IPr
             """, ct);
         results.Add(wsl);
 
-        var distro = await Run("distro", $"{d} distro installed", $"Docker is installed in the '{d}' WSL distribution.",
+        var distro = await Run("distro", $"{d} distro installed", $"Docker or Podman is installed in the '{d}' WSL distribution.",
             ["-l", "-q"],
             r => r.ExitCode == 0 && r.StdOut.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                     .Any(l => string.Equals(l, d, StringComparison.OrdinalIgnoreCase)),
@@ -57,22 +60,45 @@ public sealed class PrerequisiteCheckService(IOptions<WslOptions> options) : IPr
         if (distro.Status == CheckStatus.Pass)
             await ProcessRunner.RunAsync(Wsl, ["-d", d, "--exec", "true"], TimeSpan.FromSeconds(_opt.ColdStartTimeoutSeconds), ct);
 
-        var cli = await Run("docker-cli", "Docker CLI installed", "The app uses the docker command to create database containers.",
-            ["-d", d, "--", "docker", "--version"], r => r.ExitCode == 0,
-            $"""
-            1. Open {d}: `wsl -d {d}`
-            2. Install Docker Engine: `curl -fsSL https://get.docker.com | sudo sh`
-            3. Verify: `docker --version`
-            """, ct, dependsOn: distro);
+        // Re-detect on every run so a newly installed or started engine is picked up.
+        if (_engine.Choice == EngineChoice.Auto) _engine.InvalidateDetection();
+        var exe = distro.Status == CheckStatus.Pass ? await _engine.GetExecutableAsync(ct) : "docker";
+        var name = ContainerEngines.DisplayName(exe);
+        var podman = exe == "podman";
+
+        var cli = await Run("engine-cli", $"{name} CLI installed", $"The app uses the {exe} command to create database containers.",
+            ["-d", d, "--", exe, "--version"], r => r.ExitCode == 0,
+            podman
+                ? $"""
+                  1. Open {d}: `wsl -d {d}`
+                  2. Install Podman: `sudo apt-get update && sudo apt-get install -y podman`
+                  3. Verify: `podman --version`
+                  4. Or install Docker instead and pick it under **Container engine** above.
+                  """
+                : $"""
+                  1. Open {d}: `wsl -d {d}`
+                  2. Install Docker Engine: `curl -fsSL https://get.docker.com | sudo sh`
+                  3. Verify: `docker --version`
+                  4. Or install Podman instead (`sudo apt-get install -y podman`) and pick it under **Container engine** above.
+                  """, ct, dependsOn: distro);
         results.Add(cli);
 
-        var daemon = await Run("docker-daemon", "Docker daemon reachable", "Containers can only be created when the Docker daemon is running and accessible.",
-            ["-d", d, "--", "docker", "info"], r => r.ExitCode == 0,
-            """
-            1. Start the daemon: `sudo service docker start` (or `sudo systemctl start docker` if systemd is enabled).
-            2. Verify: `docker info`
-            """, ct, dependsOn: cli,
-            failHelp: r => IsPermissionDenied(r)
+        var daemon = await Run("engine-daemon",
+            podman ? "Podman working" : "Docker daemon reachable",
+            podman ? "Podman is daemonless, but `podman info` must succeed for your user before containers can be created."
+                   : "Containers can only be created when the Docker daemon is running and accessible.",
+            ["-d", d, "--", exe, "info"], r => r.ExitCode == 0,
+            podman
+                ? """
+                  1. Run `podman info` in WSL and read the error.
+                  2. Rootless Podman needs a working user session; try `wsl --shutdown` from PowerShell and reopen the distro.
+                  3. Verify: `podman info`
+                  """
+                : """
+                  1. Start the daemon: `sudo service docker start` (or `sudo systemctl start docker` if systemd is enabled).
+                  2. Verify: `docker info`
+                  """, ct, dependsOn: cli,
+            failHelp: r => !podman && IsPermissionDenied(r)
                 ? $"""
                   1. Your user is not allowed to access /var/run/docker.sock (permission denied). Add your user to the docker group: `sudo usermod -aG docker $USER`
                   2. Restart WSL from PowerShell: `wsl --shutdown`
@@ -81,13 +107,19 @@ public sealed class PrerequisiteCheckService(IOptions<WslOptions> options) : IPr
                 : null);
         results.Add(daemon);
 
-        results.Add(await Run("compose", "Docker Compose available", "Compose is used to define and start database stacks.",
-            ["-d", d, "--", "docker", "compose", "version"], r => r.ExitCode == 0,
-            $"""
-            1. Open {d}: `wsl -d {d}`
-            2. Install the plugin: `sudo apt-get update && sudo apt-get install -y docker-compose-plugin`
-            3. Verify: `docker compose version`
-            """, ct, dependsOn: cli));
+        results.Add(await Run("compose", $"{name} Compose available", "Compose is used to define and start database stacks.",
+            ["-d", d, "--", exe, "compose", "version"], r => r.ExitCode == 0,
+            podman
+                ? $"""
+                  1. Open {d}: `wsl -d {d}`
+                  2. Install a compose provider: `sudo apt-get update && sudo apt-get install -y podman-compose`
+                  3. Verify: `podman compose version`
+                  """
+                : $"""
+                  1. Open {d}: `wsl -d {d}`
+                  2. Install the plugin: `sudo apt-get update && sudo apt-get install -y docker-compose-plugin`
+                  3. Verify: `docker compose version`
+                  """, ct, dependsOn: cli));
 
         return results;
     }

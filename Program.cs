@@ -14,9 +14,9 @@ builder.Services.AddRazorComponents()
 
 builder.Services.Configure<WslOptions>(builder.Configuration.GetSection("Wsl"));
 builder.Services.AddScoped<IPrerequisiteCheckService, PrerequisiteCheckService>();
-builder.Services.AddSingleton<IDockerService, DockerService>();
-
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
+builder.Services.AddSingleton<IContainerEngine, ContainerEngine>();
+builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IWslDockerRunner, WslDockerRunner>();
 builder.Services.AddSingleton<IInstanceRepository, JsonInstanceRepository>();
 builder.Services.AddSingleton<IDbmsProvider, MssqlProvider>();
