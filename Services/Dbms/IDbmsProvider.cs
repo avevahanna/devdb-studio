@@ -14,6 +14,8 @@ public interface IDbmsProvider
     string NamePrefix { get; }
     /// <summary>False for non-relational DBMSs: the table designer and table data tools do not apply.</summary>
     bool SupportsTables => true;
+    /// <summary>False when the DBMS has no named databases to ask for (Redis uses numbered ones).</summary>
+    bool UsesDatabaseName => true;
     /// <summary>Name of the language the Query page accepts.</summary>
     string QueryLanguage => "SQL";
     /// <summary>Harmless example shown in a fresh query editor; null falls back to the Query page default.</summary>

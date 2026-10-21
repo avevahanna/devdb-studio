@@ -25,7 +25,7 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
         (await manager.GetAllAsync(ct)).FirstOrDefault(i => i.Id == id)?.DbmsKey;
 
     private async Task<bool> IsPostgresAsync(Guid id, CancellationToken ct) =>
-        await DbmsKeyAsync(id, ct) == PostgresProvider.ProviderKey;
+        PostgresFamilyProvider.IsFamily(await DbmsKeyAsync(id, ct));
 
     // MariaDB and MySQL share the same SQL scripts.
     private async Task<bool> IsMariaDbAsync(Guid id, CancellationToken ct) =>
@@ -42,14 +42,15 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
 
     public async Task<IReadOnlyList<string>> ListDatabasesAsync(Guid instanceId, CancellationToken ct = default)
     {
+        if (await DbmsKeyAsync(instanceId, ct) == RedisProvider.ProviderKey) return RedisScripts.Databases;
         if (await DbmsKeyAsync(instanceId, ct) == MongoDbProvider.ProviderKey)
         {
             var mr = await manager.ExecuteSqlAsync(instanceId, MongoScripts.ListDatabases, ct);
             return mr.IsSuccess ? MongoScripts.ParseDatabases(mr.StdOut) : [];
         }
-        var sql = await DbmsKeyAsync(instanceId, ct) switch
+        var key = await DbmsKeyAsync(instanceId, ct);
+        var sql = PostgresFamilyProvider.IsFamily(key) ? "SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1;" : key switch
         {
-            PostgresProvider.ProviderKey => "SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1;",
             MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey =>
                 "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema','performance_schema','mysql','sys') ORDER BY 1;",
             _ => "SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name;",
@@ -63,9 +64,8 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
     public async Task<TableListResult> ListTablesAsync(Guid instanceId, string database, CancellationToken ct = default)
     {
         var key = await DbmsKeyAsync(instanceId, ct);
-        var r = key switch
+        var r = PostgresFamilyProvider.IsFamily(key) ? await RunPg(instanceId, database, PostgresDataScript.ListTablesSql, ct) : key switch
         {
-            PostgresProvider.ProviderKey => await RunPg(instanceId, database, PostgresDataScript.ListTablesSql, ct),
             MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey => await RunMy(instanceId, database, MariaDbDataScript.ListTablesSql, ct),
             _ => await Run(instanceId, database, MssqlDataScript.ListTablesSql, ct),
         };

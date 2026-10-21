@@ -11,7 +11,7 @@ public abstract class TableDialect
     public static readonly TableDialect MariaDb = new MariaDbDialect();
 
     public static TableDialect For(string? dbmsKey) =>
-        string.Equals(dbmsKey, PostgresProvider.ProviderKey, StringComparison.OrdinalIgnoreCase) ? Postgres
+        PostgresFamilyProvider.IsFamily(dbmsKey?.ToLowerInvariant()) ? Postgres
         : string.Equals(dbmsKey, MariaDbProvider.ProviderKey, StringComparison.OrdinalIgnoreCase)
           || string.Equals(dbmsKey, MySqlProvider.ProviderKey, StringComparison.OrdinalIgnoreCase) ? MariaDb
         : Mssql;

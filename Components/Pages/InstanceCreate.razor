@@ -62,9 +62,12 @@ else if (_result is not null)
             @if (errs.Count == 0) { <div class="hint hint--ok">Password meets the requirements.</div> }
             else { <ul class="hint hint--err">@foreach (var e in errs) { <li>@e</li> }</ul> }
         }
-        <label class="field">Database name
-            <input type="text" @bind="_database" disabled="@_busy" />
-        </label>
+        @if (Provider?.UsesDatabaseName != false)
+        {
+            <label class="field">Database name
+                <input type="text" @bind="_database" disabled="@_busy" />
+            </label>
+        }
         <label class="field">Image tag
             <input type="text" @bind="_tag" disabled="@_busy" />
         </label>

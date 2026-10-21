@@ -9,6 +9,12 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.3.0
+
+- Added **TimescaleDB** (`docker.io/timescale/timescaledb`, default tag `latest-pg17`). It shares everything with PostgreSQL (psql, SQL Query page, table designer, table data, Status insights); timescaledb-internal schemas are hidden from table lists.
+- Added **Redis** (`docker.io/library/redis`, default tag `8`, password required, append-only persistence). The Query page takes redis-cli commands, one per line (database `0`–`15` selectable); Status insights show clients, keyspaces and memory. No table designer or table data. The create form has no database name field for Redis.
+- `PostgresProvider` now derives from a shared `PostgresFamilyProvider`; existing PostgreSQL container names are unchanged. Providers gained `UsesDatabaseName`.
+
 ## 1.2.0
 
 - The WSL distro is now **auto-detected** (default `Wsl:DistroName` is `Auto`): the first distro with a working Docker or Podman is used, so Ubuntu, Debian, Fedora, `podman-machine-default` and others work without configuration. Docker Desktop's helper distros are ignored.

@@ -1,6 +1,6 @@
 # Copilot instructions – DB Serve
 
-DB Serve is a .NET Blazor Server app that creates and manages database servers (SQL Server, PostgreSQL, MariaDB, MySQL, MongoDB) as Docker or Podman containers inside a WSL2 Linux distro. Read `AI.md` and `ARCHITECTURE.md` before larger changes.
+DB Serve is a .NET Blazor Server app that creates and manages database servers (SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB, Redis) as Docker or Podman containers inside a WSL2 Linux distro. Read `AI.md` and `ARCHITECTURE.md` before larger changes.
 
 ## Tech stack
 - .NET 10 (`net10.0`), ASP.NET Core Blazor Server (interactive server components), C# with `Nullable` and `ImplicitUsings` enabled. Single project: `DbServeApp.csproj`.

@@ -11,7 +11,7 @@
 <div class="page-header">
     <div>
         <h1>Query</h1>
-        <p>Run SQL (or mongosh commands for MongoDB) against a running instance using the DBMS command-line client inside the container.</p>
+        <p>Run SQL (or mongosh commands for MongoDB, redis-cli commands for Redis) against a running instance using the DBMS command-line client inside the container.</p>
     </div>
 </div>
 
@@ -164,6 +164,7 @@ else
         "// db.customers.insertOne({ name: \"Anna\", age: 30 })\n\n" +
         "// Find all customers\n" +
         "// db.customers.find().toArray()";
+    private const string RedisSample = "SET greeting \"Hello\"\nGET greeting\nKEYS *";
     private string _sql = MssqlSample;
     private string _database = "";
     private bool _busy, _refreshing, _rendered;
@@ -268,12 +269,13 @@ else
     // Swap the untouched sample query when switching between DBMSs.
     private void UseSampleForInstance()
     {
-        if (_sql is MssqlSample or PostgresSample or MariaDbSample or MongoSample)
+        if (_sql is MssqlSample or PostgresSample or MariaDbSample or MongoSample or RedisSample)
             _sql = SelectedInstance?.DbmsKey switch
             {
-                PostgresProvider.ProviderKey => PostgresSample,
+                PostgresProvider.ProviderKey or TimescaleDbProvider.ProviderKey => PostgresSample,
                 MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey => MariaDbSample,
                 MongoDbProvider.ProviderKey => MongoSample,
+                RedisProvider.ProviderKey => RedisSample,
                 _ => MssqlSample,
             };
     }
@@ -314,7 +316,9 @@ else
             ? _sql
             : key == MongoDbProvider.ProviderKey
                 ? $"db = db.getSiblingDB(\"{db.Replace("\\", "").Replace("\"", "")}\");\n{_sql}"
-                : TableDialect.For(key).Use(db) + _sql;
+                : key == RedisProvider.ProviderKey
+                    ? (int.TryParse(db, out var dbIndex) && dbIndex is >= 0 and <= 255 ? $"SELECT {dbIndex}\n{_sql}" : _sql)
+                    : TableDialect.For(key).Use(db) + _sql;
         try { _result = await Manager.ExecuteSqlAsync(_selected, sql, _cts.Token); }
         catch (OperationCanceledException) { return; }
         catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }

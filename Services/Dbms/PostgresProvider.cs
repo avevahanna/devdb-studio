@@ -3,26 +3,44 @@ using System.Globalization;
 
 namespace DbServeApp.Services.Dbms;
 
-public sealed class PostgresProvider(IWslDockerRunner docker, ILogger<PostgresProvider> log) : IDbmsProvider
+public sealed class PostgresProvider(IWslDockerRunner docker, ILogger<PostgresProvider> log) : PostgresFamilyProvider(docker, log)
 {
     public const string ProviderKey = "postgres";
+
+    public override string Key => ProviderKey;
+    public override string DisplayName => "PostgreSQL";
+    public override string DefaultImageTag => "17";
+    // Fully qualified so Podman does not depend on unqualified-search-registries.
+    public override string ImageName => "docker.io/library/postgres";
+    public override string NamePrefix => "pg";
+}
+
+/// <summary>
+/// Shared container handling for everything that speaks PostgreSQL (PostgreSQL itself, TimescaleDB). Subclasses only
+/// describe the image; SQL dialect, table tools and insights are shared.
+/// </summary>
+public abstract class PostgresFamilyProvider(IWslDockerRunner docker, ILogger log) : IDbmsProvider
+{
     private static readonly TimeSpan PullAndRunTimeout = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan ReadyWait = TimeSpan.FromSeconds(90);
 
-    public string Key => ProviderKey;
-    public string DisplayName => "PostgreSQL";
+    public static bool IsFamily(string? key) =>
+        key is PostgresProvider.ProviderKey or TimescaleDbProvider.ProviderKey;
+
+    public abstract string Key { get; }
+    public abstract string DisplayName { get; }
+    public abstract string DefaultImageTag { get; }
+    /// <summary>Fully qualified image name without tag.</summary>
+    public abstract string ImageName { get; }
+    public abstract string NamePrefix { get; }
     public int DefaultPort => 5432;
-    public string DefaultImageTag => "17";
     public string DefaultDatabase => "postgres";
-    // Fully qualified so Podman does not depend on unqualified-search-registries.
-    public string ImageName => "docker.io/library/postgres";
     public string AdminUser => "postgres";
-    public string NamePrefix => "pg";
 
     // PostgreSQL 18+ images keep the data in a version-specific directory below /var/lib/postgresql.
-    private static string DataMount(string tag)
+    protected virtual string DataMount(string tag)
     {
         if (tag.Equals("latest", StringComparison.OrdinalIgnoreCase)) return "/var/lib/postgresql";
         var digits = new string(tag.TakeWhile(char.IsDigit).ToArray());
@@ -38,7 +56,7 @@ public sealed class PostgresProvider(IWslDockerRunner docker, ILogger<PostgresPr
 
         var id = Guid.NewGuid();
         var shortId = id.ToString("N")[..8];
-        var container = $"dbapp-postgres-{shortId}";
+        var container = $"dbapp-{Key}-{shortId}";
         var volume = $"{container}-data";
         var tag = req.ImageTag.Trim();
 
@@ -80,8 +98,8 @@ public sealed class PostgresProvider(IWslDockerRunner docker, ILogger<PostgresPr
 
             var ready = await WaitUntilReadyAsync(instance, ct);
             if (ready.Error is not null)
-                return new InstanceCreateResult(true, instance, $"Container started, but PostgreSQL is not confirmed ready: {ready.Error}", ready.Detail);
-            return new InstanceCreateResult(true, instance, "Instance created and PostgreSQL is ready.");
+                return new InstanceCreateResult(true, instance, $"Container started, but {DisplayName} is not confirmed ready: {ready.Error}", ready.Detail);
+            return new InstanceCreateResult(true, instance, $"Instance created and {DisplayName} is ready.");
         }
         catch (OperationCanceledException)
         {
