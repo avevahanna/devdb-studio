@@ -9,6 +9,10 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.3.1
+
+- DBMS badges use the new SVG logos (replacing the PNG/placeholder icons) in a larger rounded white tile that stays readable in every theme.
+
 ## 1.3.0
 
 - Added **TimescaleDB** (`docker.io/timescale/timescaledb`, default tag `latest-pg17`). It shares everything with PostgreSQL (psql, SQL Query page, table designer, table data, Status insights); timescaledb-internal schemas are hidden from table lists.
