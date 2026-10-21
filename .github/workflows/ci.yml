@@ -15,9 +15,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            DbServeApp.csproj
+            tests/DbServeApp.Tests/DbServeApp.Tests.csproj
 
       - name: Build
-        run: dotnet build DbServeApp.csproj --configuration Release
+        run: dotnet build DbServeApp.csproj --configuration Release -warnaserror
 
       - name: Test
         run: dotnet test tests/DbServeApp.Tests --configuration Release

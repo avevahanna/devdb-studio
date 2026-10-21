@@ -9,6 +9,30 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.5.2
+
+Remaining code-review findings.
+
+- Connection strings (SQL Server, PostgreSQL, TimescaleDB, MySQL, MariaDB) quote passwords containing `;`, `"`, `'`, `=` or edge whitespace, so the copied string works.
+- Redis: `(error) ...` replies are now reported as Failed instead of Success.
+- MongoDB: creation waits for the image's "init process complete" log line before reporting ready, instead of pinging the temporary init-time server.
+- A container-name collision on create no longer removes the existing container or volume.
+- Status refresh no longer overwrites an instance that is being started/stopped/deleted, and updates only the status of the current record.
+- Start/stop/delete/cleanup logic shared by all providers moved to `ContainerLifecycle`.
+- CI: warnings are errors and NuGet packages are cached.
+- Tests: 185 in total.
+
+## 1.5.1
+
+Fixes from a code review.
+
+- Passwords are no longer part of the `wsl.exe`/`docker` command line: `-e NAME=value` options are moved into the process environment and forwarded with `WSLENV` (`ContainerEnvironment`), so they are not visible in process lists.
+- `ProcessRunner` starts reading output before writing stdin (no deadlock with large scripts), and a timeout while writing stdin now kills the process and reports a timeout.
+- Deleting an instance (and starting/stopping) finishes its bookkeeping even if the page is closed mid-operation, so no orphan records or volumes remain.
+- PostgreSQL and TimescaleDB: floating tags without a leading version (`alpine`, `bookworm`, `latest`) use the PostgreSQL 18+ data directory layout.
+- Engine/distro auto-detection no longer races with a change of choice (stale or empty results).
+- Added tests for all of the above (168 in total).
+
 ## 1.5.0
 
 - **Volumes can be deleted** on the Status page (Volumes tab): each volume that no container uses has a Delete button with confirmation. Use it to clean up data volumes that were kept when an instance was deleted.

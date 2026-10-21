@@ -10,7 +10,8 @@ public static class ProcessRunner
     private const int MaxOutputBytes = 2 * 1024 * 1024;
 
     public static async Task<ProcessResult> RunAsync(
-        string fileName, IEnumerable<string> arguments, TimeSpan timeout, CancellationToken ct = default, string? stdin = null)
+        string fileName, IEnumerable<string> arguments, TimeSpan timeout, CancellationToken ct = default, string? stdin = null,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var psi = new ProcessStartInfo(fileName)
         {
@@ -22,6 +23,8 @@ public static class ProcessRunner
             CreateNoWindow = true,
         };
         foreach (var a in arguments) psi.ArgumentList.Add(a);
+        if (environment is not null)
+            foreach (var (k, v) in environment) psi.Environment[k] = v;
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeout);
@@ -30,21 +33,22 @@ public static class ProcessRunner
         {
             using var process = new Process { StartInfo = psi };
             process.Start();
-            if (stdin is not null)
-            {
-                // The child may exit before reading everything; a broken pipe is not an error here.
-                try { await process.StandardInput.WriteAsync(stdin.AsMemory(), cts.Token); }
-                catch (IOException) { }
-            }
-            try { process.StandardInput.Close(); } catch (IOException) { }
 
             // Raw bytes: wsl.exe's own messages are UTF-16LE while commands inside the distro are UTF-8.
+            // Reading starts before stdin is written so a chatty child can never deadlock against a large script.
             var outTask = ReadCapped(process.StandardOutput.BaseStream);
             var errTask = ReadCapped(process.StandardError.BaseStream);
 
             var timedOut = false;
             try
             {
+                if (stdin is not null)
+                {
+                    // The child may exit before reading everything; a broken pipe is not an error here.
+                    try { await process.StandardInput.WriteAsync(stdin.AsMemory(), cts.Token); }
+                    catch (IOException) { }
+                }
+                try { process.StandardInput.Close(); } catch (IOException) { }
                 await process.WaitForExitAsync(cts.Token);
             }
             catch (OperationCanceledException)

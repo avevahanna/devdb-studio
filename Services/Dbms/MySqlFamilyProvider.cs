@@ -61,10 +61,7 @@ public abstract class MySqlFamilyProvider(IWslDockerRunner docker, ILogger log) 
             ], PullAndRunTimeout, ct: ct);
 
             if (run.ExitCode != 0)
-            {
-                await CleanupAsync(container, volume);
-                return InstanceCreateResult.Fail("Container run failed.", Err(run));
-            }
+                return await ContainerLifecycle.FailedRunAsync(docker, log, run, container, volume);
 
             var instance = new DbInstance
             {
@@ -94,38 +91,23 @@ public abstract class MySqlFamilyProvider(IWslDockerRunner docker, ILogger log) 
         }
     }
 
-    public async Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct)
-    {
-        var r = await docker.RunAsync(["start", instance.ContainerName], ct: ct);
-        return Result(r, $"Started {instance.Name}.", "Container start failed.");
-    }
+    public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) =>
+        ContainerLifecycle.StartContainerAsync(docker, instance, ct);
 
-    public async Task<InstanceActionResult> StopAsync(DbInstance instance, CancellationToken ct)
-    {
-        var r = await docker.RunAsync(["stop", "-t", "30", instance.ContainerName], StopTimeout, ct: ct);
-        return Result(r, $"Stopped {instance.Name}.", "Container stop failed.");
-    }
+    public Task<InstanceActionResult> StopAsync(DbInstance instance, CancellationToken ct) =>
+        ContainerLifecycle.StopContainerAsync(docker, instance, ct);
 
-    public async Task<InstanceActionResult> DeleteAsync(DbInstance instance, bool deleteVolume, CancellationToken ct)
+    public Task<InstanceActionResult> DeleteAsync(DbInstance instance, bool deleteVolume, CancellationToken ct)
     {
         _clients.TryRemove(instance.ContainerName, out _);
-        var rm = await docker.RunAsync(["rm", "-f", instance.ContainerName], StopTimeout, ct: ct);
-        if (rm.ExitCode != 0 && !Err(rm).Contains("No such container", StringComparison.OrdinalIgnoreCase))
-            return new(false, "Container removal failed.", Err(rm));
-
-        if (!deleteVolume) return new(true, $"Deleted {instance.Name}. Data volume '{instance.VolumeName}' was kept.");
-
-        var vol = await docker.RunAsync(["volume", "rm", instance.VolumeName], ct: ct);
-        if (vol.ExitCode != 0 && !Err(vol).Contains("No such volume", StringComparison.OrdinalIgnoreCase))
-            return new(false, "Container removed, but the data volume could not be deleted.", Err(vol));
-        return new(true, $"Deleted {instance.Name} and its data volume.");
+        return ContainerLifecycle.DeleteContainerAsync(docker, instance, deleteVolume, ct);
     }
 
     public Task<QueryResult> ExecuteSqlAsync(DbInstance instance, string sql, CancellationToken ct) =>
         RunClientAsync(instance, sql, QueryTimeout, ct);
 
     public string BuildConnectionString(DbInstance i, bool maskPassword) =>
-        $"Server=127.0.0.1;Port={i.HostPort};Database={i.DatabaseName};User ID={i.Username};Password={(maskPassword ? "*****" : i.Password)};";
+        $"Server=127.0.0.1;Port={i.HostPort};Database={i.DatabaseName};User ID={i.Username};Password={(maskPassword ? "*****" : ConnectionStrings.Value(i.Password))};";
 
     private async Task<string> GetClientAsync(DbInstance instance, CancellationToken ct)
     {
@@ -172,18 +154,6 @@ public abstract class MySqlFamilyProvider(IWslDockerRunner docker, ILogger log) 
         return ("timed out waiting for the server to accept connections.", last is null ? "" : last.StdOut + last.StdErr);
     }
 
-    private async Task CleanupAsync(string container, string volume)
-    {
-        try
-        {
-            await docker.RunAsync(["rm", "-f", container], StopTimeout);
-            await docker.RunAsync(["volume", "rm", volume]);
-        }
-        catch (Exception ex) { log.LogWarning(ex, "Cleanup of {Container} failed", container); }
-    }
-
-    private static string Err(ProcessResult r) => r.StdErr.Length > 0 ? r.StdErr : r.StdOut;
-
-    private static InstanceActionResult Result(ProcessResult r, string ok, string fail) =>
-        r.ExitCode == 0 ? new(true, ok) : new(false, r.TimedOut ? "The command timed out." : fail, Err(r));
+    private Task CleanupAsync(string container, string volume) =>
+        ContainerLifecycle.CleanupAsync(docker, log, container, volume);
 }

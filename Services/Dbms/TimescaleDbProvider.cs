@@ -20,7 +20,7 @@ public sealed partial class TimescaleDbProvider(IWslDockerRunner docker, ILogger
 
     protected override string DataMount(string tag) =>
         PgMajor().Match(tag) is { Success: true } m
-        && int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var major) && major >= 18
-            ? "/var/lib/postgresql"
-            : "/var/lib/postgresql/data";
+        && int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var major) && major < 18
+            ? "/var/lib/postgresql/data"
+            : "/var/lib/postgresql";
 }

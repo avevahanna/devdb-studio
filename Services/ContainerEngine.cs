@@ -54,9 +54,11 @@ public sealed class ContainerEngine : IContainerEngine
     private readonly SemaphoreSlim _detectLock = new(1, 1);
     private volatile EngineChoice _choice;
     private volatile string _distroChoice;
-    private (string Distro, string Exe)? _detected;
-    private bool _detectedHealthy;
-    private DateTime _detectedAt;
+    private sealed record Detection(string Distro, string Exe, bool Healthy, DateTime At);
+
+    // Replaced as a whole and read once per use; the generation lets a probe that started before a change be discarded.
+    private volatile Detection? _detected;
+    private int _generation;
 
     public ContainerEngine(IOptions<WslOptions> wsl, IOptions<StorageOptions> storage, ILogger<ContainerEngine> log)
     {
@@ -118,10 +120,11 @@ public sealed class ContainerEngine : IContainerEngine
         try
         {
             if (TryCached(out cached)) return cached;
+            var generation = Volatile.Read(ref _generation);
             var (distro, exe, healthy) = await DetectAsync(ct);
-            _detected = (distro, exe);
-            _detectedHealthy = healthy;
-            _detectedAt = DateTime.UtcNow;
+            // A choice made while probing makes this result stale; use it for this call only.
+            if (generation == Volatile.Read(ref _generation))
+                _detected = new Detection(distro, exe, healthy, DateTime.UtcNow);
             _log.LogInformation("Detected WSL distro {Distro} with {Engine} (healthy: {Healthy})", distro, exe, healthy);
             return (distro, exe);
         }
@@ -131,20 +134,32 @@ public sealed class ContainerEngine : IContainerEngine
     // A working engine stays cached until invalidated; a failed detection is retried after a short while.
     private bool TryCached(out (string Distro, string Exe) detected)
     {
-        detected = _detected ?? ("", "");
-        return _detected is not null && (_detectedHealthy || DateTime.UtcNow - _detectedAt < FailureCacheTtl);
+        var d = _detected;
+        if (d is not null && (d.Healthy || DateTime.UtcNow - d.At < FailureCacheTtl))
+        {
+            detected = (d.Distro, d.Exe);
+            return true;
+        }
+        detected = default;
+        return false;
+    }
+
+    private void Forget()
+    {
+        Interlocked.Increment(ref _generation);
+        _detected = null;
     }
 
     public void InvalidateDetection()
     {
-        _detected = null;
+        Forget();
         Changed?.Invoke();
     }
 
     public async Task SetChoiceAsync(EngineChoice choice, CancellationToken ct = default)
     {
         _choice = choice;
-        _detected = null;
+        Forget();
         await SaveAsync(ct);
         Changed?.Invoke();
     }
@@ -152,7 +167,7 @@ public sealed class ContainerEngine : IContainerEngine
     public async Task SetDistroAsync(string choice, CancellationToken ct = default)
     {
         _distroChoice = ContainerEngines.IsAuto(choice) ? ContainerEngines.AutoDistro : choice.Trim();
-        _detected = null;
+        Forget();
         await SaveAsync(ct);
         Changed?.Invoke();
     }

@@ -54,10 +54,25 @@ public sealed class InstanceManager(
         {
             var status = states.TryGetValue(i.ContainerName, out var state) ? MapState(state) : InstanceStatus.NotFound;
             var updated = i with { Status = status };
-            if (status != i.Status) await repo.UpdateAsync(updated, ct);
+            if (status != i.Status) await PersistStatusAsync(i.Id, status, ct);
             result.Add(updated);
         }
         return new InstanceListResult(result, null);
+    }
+
+    // The status was observed before this call; a start/stop/delete in flight owns the record, so never overwrite it
+    // with a stale value. Re-read the record so only the status field changes.
+    private async Task PersistStatusAsync(Guid id, InstanceStatus status, CancellationToken ct)
+    {
+        if (!_locks.TryGetValue(id, out var gate)) gate = _locks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        if (!await gate.WaitAsync(0, CancellationToken.None)) return;
+        try
+        {
+            var current = await repo.GetAsync(id, ct);
+            if (current is not null && current.Status != status)
+                await repo.UpdateAsync(current with { Status = status }, ct);
+        }
+        finally { gate.Release(); }
     }
 
     private static InstanceStatus MapState(string state) => state switch
@@ -103,7 +118,7 @@ public sealed class InstanceManager(
         WithInstance(id, async (i, p) =>
         {
             var r = await p.StartAsync(i, ct);
-            if (r.Success) await repo.UpdateAsync(i with { Status = InstanceStatus.Running }, ct);
+            if (r.Success) await repo.UpdateAsync(i with { Status = InstanceStatus.Running }, CancellationToken.None);
             return r;
         });
 
@@ -111,7 +126,7 @@ public sealed class InstanceManager(
         WithInstance(id, async (i, p) =>
         {
             var r = await p.StopAsync(i, ct);
-            if (r.Success) await repo.UpdateAsync(i with { Status = InstanceStatus.Stopped }, ct);
+            if (r.Success) await repo.UpdateAsync(i with { Status = InstanceStatus.Stopped }, CancellationToken.None);
             return r;
         });
 
@@ -121,7 +136,8 @@ public sealed class InstanceManager(
             var r = await p.DeleteAsync(i, deleteVolume, ct);
             if (r.Success)
             {
-                await repo.RemoveAsync(id, ct);
+                // The container is already gone; the record must follow even if the circuit has been cancelled.
+                await repo.RemoveAsync(id, CancellationToken.None);
                 log.LogInformation("Deleted instance {Name} ({Container}), volume deleted: {Volume}", i.Name, i.ContainerName, deleteVolume);
             }
             return r;

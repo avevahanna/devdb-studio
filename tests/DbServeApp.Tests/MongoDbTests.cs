@@ -66,12 +66,13 @@ public class MongoDbTests
     [Fact]
     public async Task Create_BindsToLoopback_AndSetsRootCredentials()
     {
-        var runner = new FakeRunner(a => a[0] == "run" ? Ok("id") : Ok("1"));
+        var runner = new FakeRunner(a => a[0] == "run" ? Ok("id") : a[0] == "logs" ? Ok("MongoDB init process complete; ready for start up.") : Ok("1"));
         var req = new InstanceCreateRequest("m1", MongoDbProvider.ProviderKey, 27018, "Passw0rd!x", "appdb", "8");
 
         var r = await Provider(runner).CreateAsync(req, default);
 
         Assert.True(r.Success);
+        Assert.Contains("is ready", r.Message);
         var run = runner.Calls.First(c => c[0] == "run");
         Assert.Contains("127.0.0.1:27018:27017", run);
         Assert.Contains("MONGO_INITDB_ROOT_USERNAME=root", run);

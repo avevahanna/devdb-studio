@@ -29,7 +29,7 @@
 ## Boundaries
 - **UI ↔ services:** pages depend only on interfaces and the models in `Services/Dbms/Models.cs`. No page runs processes.
 - **Services ↔ host:** the only process boundary is `ProcessRunner` (always `wsl.exe`, discrete arguments, timeouts, output cap of 2 MB). `IWslDockerRunner` adds the detected distro and engine.
-- **Providers ↔ DBMS:** a provider owns image, ports, env vars, volumes and the client binary of one DBMS. Queries run by `docker exec -i` inside the container with the script on stdin and credentials in env vars; output is converted to a common tab-separated layout (SQL) or shown as text (MongoDB).
+- **Providers ↔ DBMS:** a provider owns image, ports, env vars, volumes and the client binary of one DBMS. Start/stop/delete/cleanup are shared in `Services\Dbms\ContainerLifecycle.cs`; new providers should call it rather than copy it. Queries run by `docker exec -i` inside the container with the script on stdin and credentials in env vars (`ContainerEnvironment` forwards them via `WSLENV`, keeping them off the command line); output is converted to a common tab-separated layout (SQL) or shown as text (MongoDB).
 - **Persistence:** two JSON files (`instances.json`, `settings.json`); container state is the source of truth for running status (`InstanceManager.RefreshStatusAsync`).
 - **Trust:** no authentication; loopback-only by middleware in `Program.cs`, containers bound to loopback.
 
