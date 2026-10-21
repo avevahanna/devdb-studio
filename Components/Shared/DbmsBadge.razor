@@ -18,6 +18,7 @@
         "mssql" => "Microsoft SQL Server",
         "postgres" => "PostgreSQL",
         "mariadb" => "MariaDB",
+        "mysql" => "MySQL",
         _ => Key,
     };
 
@@ -26,6 +27,7 @@
         "mssql" => "SQL",
         "postgres" => "PG",
         "mariadb" => "MDB",
+        "mysql" => "MY",
         _ => Key.Length > 3 ? Key[..3].ToUpperInvariant() : Key.ToUpperInvariant(),
     };
 }

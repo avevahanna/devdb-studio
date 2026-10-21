@@ -12,7 +12,8 @@ public abstract class TableDialect
 
     public static TableDialect For(string? dbmsKey) =>
         string.Equals(dbmsKey, PostgresProvider.ProviderKey, StringComparison.OrdinalIgnoreCase) ? Postgres
-        : string.Equals(dbmsKey, MariaDbProvider.ProviderKey, StringComparison.OrdinalIgnoreCase) ? MariaDb
+        : string.Equals(dbmsKey, MariaDbProvider.ProviderKey, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(dbmsKey, MySqlProvider.ProviderKey, StringComparison.OrdinalIgnoreCase) ? MariaDb
         : Mssql;
 
     /// <summary>False when a schema is the same thing as a database (MariaDB/MySQL), so no separate schema is entered.</summary>

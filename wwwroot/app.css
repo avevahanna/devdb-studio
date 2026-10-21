@@ -280,6 +280,7 @@ a.btn { text-decoration: none; display: inline-block; }
 .dbms--mssql .dbms__logo { background: linear-gradient(135deg, #cc2927, #8f1b1a); }
 .dbms--postgres .dbms__logo { background: linear-gradient(135deg, #336791, #234a68); }
 .dbms--mariadb .dbms__logo { background: linear-gradient(135deg, #1f305c, #0f1b3a); }
+.dbms--mysql .dbms__logo { background: linear-gradient(135deg, #00758f, #f29111); }
 .dbms__text { display: flex; flex-direction: column; line-height: 1.25; }
 .dbms__name { font-weight: 500; }
 .dbms__tag { font-size: 12.5px; color: var(--muted); font-family: "Roboto Mono", Consolas, monospace; }

@@ -37,18 +37,26 @@ public static class MariaDbDataScript
     private static string Lit(string s) => "'" + s.Replace("\\", "\\\\").Replace("'", "''") + "'";
     private static string Inv(IFormattable v) => v.ToString(null, CultureInfo.InvariantCulture);
 
+    // MariaDB stores JSON as LONGTEXT guarded by a CHECK(json_valid(...)) constraint; MySQL has a native JSON type
+    // and a CHECK_CONSTRAINTS view without a table column.
+    private static string JsonCheckSql(bool mariaDb) => mariaDb
+        ? """
+          CASE WHEN EXISTS (SELECT 1 FROM information_schema.CHECK_CONSTRAINTS k
+                            WHERE k.CONSTRAINT_SCHEMA = c.TABLE_SCHEMA AND k.TABLE_NAME = c.TABLE_NAME
+                              AND LOWER(k.CHECK_CLAUSE) LIKE CONCAT('%json_valid(`', LOWER(c.COLUMN_NAME), '`)%')) THEN 'YES' ELSE 'NO' END
+          """
+        : "'NO'";
+
     public static string FullName(string schema, string table) => $"{Q(schema.Trim())}.{Q(table.Trim())}";
 
     public static string ListTablesSql =>
         "SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = DATABASE() ORDER BY 1, 2;";
 
-    public static string ColumnsSql(string schema, string table) => $"""
+    public static string ColumnsSql(string schema, string table, bool mariaDb) => $"""
         SELECT c.COLUMN_NAME, c.DATA_TYPE, c.COLUMN_TYPE, c.IS_NULLABLE, c.EXTRA,
                CASE WHEN c.COLUMN_DEFAULT IS NOT NULL AND c.COLUMN_DEFAULT <> 'NULL' THEN 'YES' ELSE 'NO' END,
                COALESCE(c.CHARACTER_MAXIMUM_LENGTH, 0), COALESCE(c.NUMERIC_PRECISION, 0), COALESCE(c.NUMERIC_SCALE, 0),
-               CASE WHEN EXISTS (SELECT 1 FROM information_schema.CHECK_CONSTRAINTS k
-                                 WHERE k.CONSTRAINT_SCHEMA = c.TABLE_SCHEMA AND k.TABLE_NAME = c.TABLE_NAME
-                                   AND LOWER(k.CHECK_CLAUSE) LIKE CONCAT('%json_valid(`', LOWER(c.COLUMN_NAME), '`)%')) THEN 'YES' ELSE 'NO' END
+               {JsonCheckSql(mariaDb)}
         FROM information_schema.COLUMNS c
         WHERE c.TABLE_SCHEMA = {Lit(schema.Trim())} AND c.TABLE_NAME = {Lit(table.Trim())}
         ORDER BY c.ORDINAL_POSITION;

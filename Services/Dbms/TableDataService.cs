@@ -25,8 +25,9 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
     private async Task<bool> IsPostgresAsync(Guid id, CancellationToken ct) =>
         await DbmsKeyAsync(id, ct) == PostgresProvider.ProviderKey;
 
+    // MariaDB and MySQL share the same SQL scripts.
     private async Task<bool> IsMariaDbAsync(Guid id, CancellationToken ct) =>
-        await DbmsKeyAsync(id, ct) == MariaDbProvider.ProviderKey;
+        await DbmsKeyAsync(id, ct) is MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey;
 
     private Task<QueryResult> Run(Guid id, string database, string sql, CancellationToken ct) =>
         manager.ExecuteSqlAsync(id, MssqlDataScript.Use(database) + sql, ct);
@@ -43,7 +44,7 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
         var r = key switch
         {
             PostgresProvider.ProviderKey => await RunPg(instanceId, database, PostgresDataScript.ListTablesSql, ct),
-            MariaDbProvider.ProviderKey => await RunMy(instanceId, database, MariaDbDataScript.ListTablesSql, ct),
+            MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey => await RunMy(instanceId, database, MariaDbDataScript.ListTablesSql, ct),
             _ => await Run(instanceId, database, MssqlDataScript.ListTablesSql, ct),
         };
         if (!r.IsSuccess) return new TableListResult([], (r.StdErr + "\n" + r.StdOut).Trim());
@@ -131,7 +132,7 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
 
     private async Task<QueryResult> PopulateMariaDbAsync(Guid id, string database, string schema, string table, int rows, CancellationToken ct)
     {
-        var colsRes = await RunMy(id, database, MariaDbDataScript.ColumnsSql(schema, table), ct);
+        var colsRes = await RunMy(id, database, MariaDbDataScript.ColumnsSql(schema, table, await DbmsKeyAsync(id, ct) == MariaDbProvider.ProviderKey), ct);
         if (!colsRes.IsSuccess) return colsRes;
         var cols = FirstTable(colsRes) is { } ct1 ? MariaDbDataScript.ParseColumns(ct1) : [];
         if (cols.Count == 0) return Fail($"Table {schema}.{table} was not found or has no columns.");
