@@ -36,6 +36,9 @@ code, pre { font-family: 'Roboto Mono', Consolas, monospace; }
     padding: 0 24px;
     background: var(--navy);
     color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 .app-bar__logo {
     background: var(--primary);

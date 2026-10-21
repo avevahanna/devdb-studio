@@ -120,7 +120,7 @@ public sealed class MssqlProvider(IWslDockerRunner docker, ILogger<MssqlProvider
         RunSqlcmdAsync(instance, instance.DatabaseName, sql, QueryTimeout, ct);
 
     public string BuildConnectionString(DbInstance i, bool maskPassword) =>
-        $"Server=127.0.0.1,{i.HostPort};User Id={i.Username};Password={(maskPassword ? "*****" : i.Password)};TrustServerCertificate=True;";
+        $"Server=127.0.0.1,{i.HostPort};Database={i.DatabaseName};User Id={i.Username};Password={(maskPassword ? "*****" : i.Password)};TrustServerCertificate=True;";
 
     private async Task<QueryResult> RunSqlcmdAsync(DbInstance instance, string database, string sql, TimeSpan timeout, CancellationToken ct)
     {

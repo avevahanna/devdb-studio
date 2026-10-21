@@ -10,6 +10,12 @@ Built with .NET 10 Blazor Server (interactive server rendering), running on Wind
 - **Instances** (`/instances`, `/instances/create`) – create, start, stop and delete database instances. Cards show the DBMS, status, port, and a connection string with reveal and copy-to-clipboard.
 - **Query** (`/query`) – run SQL against a running instance and view results as tables (with a raw-output toggle).
 - **Tables** (`/tables`) – visual table designer that generates a T-SQL `CREATE TABLE` script and runs it.
+- **Table data** (`/data`) – pick a table and either fill it with 1–10,000 random rows or clear all of its data (with confirmation). SQL Server only.
+  - Values are chosen from each column's name and type (e.g. `email`, `city`, `price`, `birthDate`) and respect length and precision. Identity and computed columns are skipped.
+  - Foreign keys, including composite ones, point at real rows in the referenced table; if it is empty you are asked to populate it first.
+  - Unique indexes and primary keys are honoured: unique columns continue above the existing maximum, and foreign-key-only unique indexes (junction tables) get distinct combinations. If uniqueness can't be guaranteed you get a clear error.
+  - Inserts run in a single transaction, so a failure leaves the table unchanged. `CHECK` constraints are not known to the generator and can still cause a failure.
+  - Clearing uses `TRUNCATE`, or `DELETE` plus an identity reseed when other tables reference the table (it fails if rows there still point at the table).
 - **Status** (`/status`) – live Docker statistics (CPU/memory, containers, images, volumes, networks, disk usage) with auto-refresh, plus container administration (start, stop, restart, pause, kill, remove, logs, inspect).
 
 ### Supported DBMS
@@ -52,7 +58,7 @@ Then open <http://localhost:5190>.
 ## Architecture
 
 - `Services/ProcessRunner.cs`, `WslDockerRunner.cs` – run `wsl.exe -d <distro> --exec docker ...` with timeout, cancellation and captured stdout/stderr (no shell quoting).
-- `Services/Dbms/` – provider pattern: `IDbmsProvider`, `MssqlProvider`, `InstanceManager` (orchestration, status via `docker ps -a`), `JsonInstanceRepository`, `SqlcmdOutputParser`, `MssqlTableScript`.
+- `Services/Dbms/` – provider pattern: `IDbmsProvider`, `MssqlProvider`, `InstanceManager` (orchestration, status via `docker ps -a`), `JsonInstanceRepository`, `SqlcmdOutputParser`, `MssqlTableScript`, `MssqlDataScript` + `TableDataService` (random population and clearing).
 - `Services/DockerService.cs`, `PrerequisiteCheckService.cs` – Status page data and Setup checks.
 - `Components/Pages`, `Components/Shared` – UI. Styling in `wwwroot/app.css`.
 
@@ -62,7 +68,7 @@ SQL Server containers are created with a named volume at `/var/opt/mssql`, named
 
 - The app only accepts loopback requests and rejects cross-origin requests by default.
 - SA passwords are stored in **plain text** in `instances.json` (v1) and are visible in `docker inspect`. Use this for local development only.
-- The Query and Tables pages run arbitrary SQL by design.
+- The Query and Tables pages run arbitrary SQL by design. The Table data page can delete all rows of a table.
 - Connect from Windows with `127.0.0.1,<port>` (not `localhost`, which may resolve to IPv6).
 
 ## Out of scope

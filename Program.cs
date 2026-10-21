@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IInstanceRepository, JsonInstanceRepository>();
 builder.Services.AddSingleton<IDbmsProvider, MssqlProvider>();
 // TODO: register PostgresProvider and MariaDbProvider here once implemented.
 builder.Services.AddSingleton<IInstanceManager, InstanceManager>();
+builder.Services.AddSingleton<ITableDataService, TableDataService>();
 builder.Services.AddHostedService<WslKeepAliveService>();
 
 var app = builder.Build();

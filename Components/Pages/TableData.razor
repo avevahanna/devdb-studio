@@ -1,0 +1,185 @@
+@page "/data"
+@using DbServeApp.Services.Dbms
+@implements IDisposable
+@inject IInstanceManager Manager
+@inject ITableDataService Data
+
+<PageTitle>Table data</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Table data</h1>
+        <p>Fill a table with random, suitable values or clear all of its data.</p>
+    </div>
+</div>
+
+@if (_instances is null)
+{
+    <div class="card"><div class="card__note" style="padding-top:14px">Loading instances…</div></div>
+}
+else if (_instances.Count == 0)
+{
+    <div class="card"><div class="card__note" style="padding-top:14px">No instances yet. <a href="/instances/create">Create one</a> first.</div></div>
+}
+else
+{
+    <div class="card">
+        <div class="card__body form form--wide">
+            <div class="form-row">
+                <label class="field">Instance
+                    <select value="@_selected" @onchange="OnInstanceChanged" disabled="@_busy">
+                        @foreach (var i in _instances)
+                        {
+                            <option value="@i.Id">@i.Name — @i.Status (port @i.HostPort)</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">Database
+                    <input type="text" @bind="_database" disabled="@_busy" />
+                </label>
+                <label class="field">Table
+                    <select value="@_table" @onchange="OnTableChanged" disabled="@(_busy || _tables.Count == 0)">
+                        <option value="">— select —</option>
+                        @foreach (var t in _tables)
+                        {
+                            <option value="@t">@t</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">Rows to create
+                    <input type="number" min="1" max="@MssqlDataScript.MaxRows" @bind="_rows" disabled="@_busy" />
+                </label>
+            </div>
+            <div class="toolbar" style="margin-top:12px">
+                <button class="btn btn-sm" @onclick="LoadTablesAsync" disabled="@(_busy || !Running)">Load tables</button>
+                <button class="btn btn-primary" @onclick="PopulateAsync" disabled="@(_busy || !Running || _table == "")">
+                    @if (_busy && _action == "populate") { <span class="spinner"></span> }
+                    Populate
+                </button>
+                <button class="btn btn-outline-danger" @onclick="() => _confirmClear = true" disabled="@(_busy || !Running || _table == "")">Clear all data…</button>
+            </div>
+            @if (!Running) { <p class="muted">Instance is not running — start it first.</p> }
+            <p class="muted">Maximum @MssqlDataScript.MaxRows rows per run. Inserts run in one transaction, so a failure leaves the table unchanged.</p>
+        </div>
+    </div>
+
+    @if (_confirmClear)
+    {
+        <div class="banner banner--warn">
+            <div><strong>Delete all rows from “@_table”?</strong> This cannot be undone.</div>
+            <button class="btn btn-sm btn-danger" disabled="@_busy" @onclick="ClearAsync">Confirm clear</button>
+            <button class="btn btn-sm" @onclick="() => _confirmClear = false">Cancel</button>
+        </div>
+    }
+
+    @if (_listError is not null)
+    {
+        <div class="banner banner--error"><div><strong>Could not list tables</strong><pre class="logs">@_listError</pre></div></div>
+    }
+
+    @if (_result is not null)
+    {
+        <div class="card card--@(_result.IsSuccess ? "pass" : "fail")">
+            <div class="card__head">
+                <span class="card__title">@_resultTitle</span>
+                <span class="chip @(_result.IsSuccess ? "chip--pass" : "chip--fail")">@(_result.IsSuccess ? "Success" : "Failed")</span>
+                <span class="muted">@_result.Elapsed.TotalSeconds.ToString("0.00")s</span>
+            </div>
+            <div class="card__body">
+                @if (!string.IsNullOrWhiteSpace(_result.StdOut)) { <pre class="logs">@_result.StdOut</pre> }
+                @if (!string.IsNullOrWhiteSpace(_result.StdErr)) { <h4>Errors</h4><pre class="logs">@_result.StdErr</pre> }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "instance")] public Guid? InstanceId { get; set; }
+
+    private IReadOnlyList<DbInstance>? _instances;
+    private IReadOnlyList<TableRef> _tables = [];
+    private readonly CancellationTokenSource _cts = new();
+    private Guid _selected;
+    private string _database = "master", _table = "", _resultTitle = "", _action = "";
+    private string? _listError;
+    private int _rows = 100;
+    private bool _busy, _confirmClear;
+    private QueryResult? _result;
+
+    private DbInstance? SelectedInstance => _instances?.FirstOrDefault(i => i.Id == _selected);
+    private bool Running => SelectedInstance?.Status == InstanceStatus.Running;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _instances = (await Manager.RefreshStatusAsync(_cts.Token)).Instances;
+        _selected = _instances.FirstOrDefault(i => i.Id == InstanceId)?.Id
+            ?? _instances.FirstOrDefault(i => i.Status == InstanceStatus.Running)?.Id
+            ?? _instances.FirstOrDefault()?.Id ?? Guid.Empty;
+        _database = SelectedInstance?.DatabaseName ?? "master";
+        if (Running) await LoadTablesAsync();
+    }
+
+    private async Task OnInstanceChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        _selected = id;
+        _database = SelectedInstance?.DatabaseName ?? "master";
+        _tables = [];
+        _table = "";
+        _result = null;
+        _confirmClear = false;
+        if (Running) await LoadTablesAsync();
+    }
+
+    private void OnTableChanged(ChangeEventArgs e)
+    {
+        _table = e.Value?.ToString() ?? "";
+        _confirmClear = false;
+    }
+
+    private async Task LoadTablesAsync()
+    {
+        if (_busy || SelectedInstance is null) return;
+        _busy = true;
+        _listError = null;
+        try
+        {
+            var r = await Data.ListTablesAsync(_selected, _database, _cts.Token);
+            _tables = r.Tables;
+            _listError = r.Error;
+            if (_tables.All(t => t.ToString() != _table)) _table = "";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { _listError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private Task PopulateAsync() =>
+        RunAsync("populate", $"Populate {_table}", t => Data.PopulateAsync(_selected, _database, t.Schema, t.Name, _rows, _cts.Token));
+
+    private Task ClearAsync()
+    {
+        _confirmClear = false;
+        return RunAsync("clear", $"Clear {_table}", t => Data.ClearAsync(_selected, _database, t.Schema, t.Name, _cts.Token));
+    }
+
+    private async Task RunAsync(string action, string title, Func<TableRef, Task<QueryResult>> op)
+    {
+        var t = _tables.FirstOrDefault(x => x.ToString() == _table);
+        if (_busy || t is null) return;
+        _busy = true;
+        _action = action;
+        _result = null;
+        _resultTitle = title;
+        try { _result = await op(t); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

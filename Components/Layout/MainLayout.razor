@@ -5,10 +5,11 @@
     <span class="app-bar__title">DB Serve</span>
     <span class="app-bar__sub">Database servers on WSL Docker</span>
     <nav class="app-bar__nav">
-        <NavLink href="setup">Setup</NavLink>
         <NavLink href="instances">Instances</NavLink>
         <NavLink href="query">Query</NavLink>
-        <NavLink href="tables">Tables</NavLink>
+        <NavLink href="tables" Match="NavLinkMatch.All">Tables</NavLink>
+        <NavLink href="data">Table data</NavLink>
+        <NavLink href="setup">Setup</NavLink>
         <NavLink href="status">Status</NavLink>
     </nav>
 </header>
