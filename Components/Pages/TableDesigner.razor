@@ -37,9 +37,12 @@ else
                 <label class="field">Database
                     <input type="text" @bind="_database" disabled="@_busy" />
                 </label>
-                <label class="field">Schema
-                    <input type="text" @bind="_schema" disabled="@_busy" />
-                </label>
+                @if (Dialect.HasSchemas)
+                {
+                    <label class="field">Schema
+                        <input type="text" @bind="_schema" disabled="@_busy" />
+                    </label>
+                }
                 <label class="field">Table name
                     <input type="text" @bind="_table" @bind:event="oninput" maxlength="128" placeholder="e.g. Customers" disabled="@_busy" />
                 </label>
@@ -84,7 +87,7 @@ else
                             <td>
                                 @if (Dialect.UsesLength(c.Type))
                                 {
-                                    <input type="number" class="num" @bind="c.Length" min="1" max="@Dialect.MaxLength" placeholder="@(Dialect == TableDialect.Mssql ? "MAX" : "none")" disabled="@_busy" />
+                                    <input type="number" class="num" @bind="c.Length" min="1" max="@Dialect.MaxLength" placeholder="@Dialect.LengthHint" disabled="@_busy" />
                                 }
                                 else if (Dialect.UsesPrecision(c.Type))
                                 {
@@ -184,7 +187,7 @@ else
 
     private void Rebuild()
     {
-        var def = new TableDef(_schema.Trim(), _table.Trim(), _columns);
+        var def = new TableDef(Dialect.HasSchemas ? _schema.Trim() : _database.Trim(), _table.Trim(), _columns);
         _errors = Dialect.Validate(def);
         var use = string.IsNullOrWhiteSpace(_database) || _database == SelectedInstance?.DatabaseName ? null : _database.Trim();
         _script = string.IsNullOrWhiteSpace(_table) || _columns.Count == 0
@@ -263,7 +266,7 @@ else
     {
         Rebuild();
         if (_busy || _errors.Count > 0 || SelectedInstance is null) return;
-        _resultTitle = $"Create {_schema}.{_table}";
+        _resultTitle = $"Create {(Dialect.HasSchemas ? _schema + "." : "")}{_table}";
         await RunSqlAsync(_script);
     }
 

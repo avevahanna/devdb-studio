@@ -21,7 +21,7 @@ builder.Services.AddSingleton<IWslDockerRunner, WslDockerRunner>();
 builder.Services.AddSingleton<IInstanceRepository, JsonInstanceRepository>();
 builder.Services.AddSingleton<IDbmsProvider, MssqlProvider>();
 builder.Services.AddSingleton<IDbmsProvider, PostgresProvider>();
-// TODO: register MariaDbProvider here once implemented.
+builder.Services.AddSingleton<IDbmsProvider, MariaDbProvider>();
 builder.Services.AddSingleton<IInstanceManager, InstanceManager>();
 builder.Services.AddSingleton<ITableDataService, TableDataService>();
 builder.Services.AddHostedService<WslKeepAliveService>();

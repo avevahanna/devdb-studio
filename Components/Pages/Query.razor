@@ -95,6 +95,7 @@ else
     private Guid _selected;
     private const string MssqlSample = "SELECT @@VERSION AS version;";
     private const string PostgresSample = "SELECT version();";
+    private const string MariaDbSample = "SELECT VERSION() AS version;";
     private string _sql = MssqlSample;
     private string _database = "";
     private bool _busy, _refreshing;
@@ -117,8 +118,13 @@ else
     // Swap the untouched sample query when switching between DBMSs.
     private void UseSampleForInstance()
     {
-        var pg = SelectedInstance?.DbmsKey == PostgresProvider.ProviderKey;
-        if (_sql is MssqlSample or PostgresSample) _sql = pg ? PostgresSample : MssqlSample;
+        if (_sql is MssqlSample or PostgresSample or MariaDbSample)
+            _sql = SelectedInstance?.DbmsKey switch
+            {
+                PostgresProvider.ProviderKey => PostgresSample,
+                MariaDbProvider.ProviderKey => MariaDbSample,
+                _ => MssqlSample,
+            };
     }
 
     private void OnInstanceChanged(ChangeEventArgs e)

@@ -19,8 +19,14 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
 {
     private static QueryResult Fail(string msg) => new(false, "", msg, -1, TimeSpan.Zero);
 
+    private async Task<string?> DbmsKeyAsync(Guid id, CancellationToken ct) =>
+        (await manager.GetAllAsync(ct)).FirstOrDefault(i => i.Id == id)?.DbmsKey;
+
     private async Task<bool> IsPostgresAsync(Guid id, CancellationToken ct) =>
-        (await manager.GetAllAsync(ct)).FirstOrDefault(i => i.Id == id)?.DbmsKey == PostgresProvider.ProviderKey;
+        await DbmsKeyAsync(id, ct) == PostgresProvider.ProviderKey;
+
+    private async Task<bool> IsMariaDbAsync(Guid id, CancellationToken ct) =>
+        await DbmsKeyAsync(id, ct) == MariaDbProvider.ProviderKey;
 
     private Task<QueryResult> Run(Guid id, string database, string sql, CancellationToken ct) =>
         manager.ExecuteSqlAsync(id, MssqlDataScript.Use(database) + sql, ct);
@@ -28,12 +34,18 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
     private Task<QueryResult> RunPg(Guid id, string database, string sql, CancellationToken ct) =>
         manager.ExecuteSqlAsync(id, TableDialect.Postgres.Use(database) + sql, ct);
 
+    private Task<QueryResult> RunMy(Guid id, string database, string sql, CancellationToken ct) =>
+        manager.ExecuteSqlAsync(id, TableDialect.MariaDb.Use(database) + sql, ct);
+
     public async Task<TableListResult> ListTablesAsync(Guid instanceId, string database, CancellationToken ct = default)
     {
-        var pg = await IsPostgresAsync(instanceId, ct);
-        var r = pg
-            ? await RunPg(instanceId, database, PostgresDataScript.ListTablesSql, ct)
-            : await Run(instanceId, database, MssqlDataScript.ListTablesSql, ct);
+        var key = await DbmsKeyAsync(instanceId, ct);
+        var r = key switch
+        {
+            PostgresProvider.ProviderKey => await RunPg(instanceId, database, PostgresDataScript.ListTablesSql, ct),
+            MariaDbProvider.ProviderKey => await RunMy(instanceId, database, MariaDbDataScript.ListTablesSql, ct),
+            _ => await Run(instanceId, database, MssqlDataScript.ListTablesSql, ct),
+        };
         if (!r.IsSuccess) return new TableListResult([], (r.StdErr + "\n" + r.StdOut).Trim());
         var table = SqlcmdOutputParser.Parse(r.StdOut).Select(b => b.Table).FirstOrDefault(t => t is not null);
         var list = table?.Rows.Where(x => x.Count >= 2).Select(x => new TableRef(x[0], x[1])).ToList() ?? [];
@@ -43,6 +55,11 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
     public async Task<QueryResult> ClearAsync(Guid instanceId, string database, string schema, string table, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(table)) return Fail("Choose a table.");
+        if (await IsMariaDbAsync(instanceId, ct))
+        {
+            var mr = await RunMy(instanceId, database, MariaDbDataScript.ClearSql(schema, table), ct);
+            return mr.IsSuccess ? mr with { StdOut = $"Cleared all data from {schema}.{table}." } : mr;
+        }
         if (await IsPostgresAsync(instanceId, ct))
         {
             var pr = await RunPg(instanceId, database, PostgresDataScript.ClearSql(schema, table), ct);
@@ -61,6 +78,7 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
         if (string.IsNullOrWhiteSpace(table)) return Fail("Choose a table.");
         if (rows is < 1 or > MssqlDataScript.MaxRows) return Fail($"Number of rows must be between 1 and {MssqlDataScript.MaxRows}.");
         if (await IsPostgresAsync(instanceId, ct)) return await PopulatePostgresAsync(instanceId, database, schema, table, rows, ct);
+        if (await IsMariaDbAsync(instanceId, ct)) return await PopulateMariaDbAsync(instanceId, database, schema, table, rows, ct);
 
         var colsRes = await Run(instanceId, database, MssqlDataScript.ColumnsSql(schema, table), ct);
         if (!colsRes.IsSuccess) return colsRes;
@@ -108,6 +126,44 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
         if (script is null) return Fail(error ?? "Could not build insert script.");
 
         var result = await manager.ExecuteSqlAsync(instanceId, MssqlDataScript.Use(database) + script, ct);
+        return result.IsSuccess ? result with { StdOut = $"Inserted {rows} random row{(rows == 1 ? "" : "s")} into {schema}.{table}." } : result;
+    }
+
+    private async Task<QueryResult> PopulateMariaDbAsync(Guid id, string database, string schema, string table, int rows, CancellationToken ct)
+    {
+        var colsRes = await RunMy(id, database, MariaDbDataScript.ColumnsSql(schema, table), ct);
+        if (!colsRes.IsSuccess) return colsRes;
+        var cols = FirstTable(colsRes) is { } ct1 ? MariaDbDataScript.ParseColumns(ct1) : [];
+        if (cols.Count == 0) return Fail($"Table {schema}.{table} was not found or has no columns.");
+
+        var uniqRes = await RunMy(id, database, MariaDbDataScript.UniqueSetsSql(schema, table), ct);
+        if (!uniqRes.IsSuccess) return uniqRes;
+        var fkRes = await RunMy(id, database, MariaDbDataScript.ForeignKeysSql(schema, table), ct);
+        if (!fkRes.IsSuccess) return fkRes;
+
+        var meta = new MyMeta(
+            cols,
+            FirstTable(uniqRes) is { } ut ? MariaDbDataScript.ParseUniqueSets(ut) : [],
+            FirstTable(fkRes) is { } ft ? MariaDbDataScript.ParseForeignKeys(ft) : []);
+
+        var (plan, planError) = MariaDbDataScript.Plan(meta);
+        if (plan is null) return Fail(planError ?? "Could not plan the insert.");
+
+        // A required foreign key cannot be satisfied from an empty parent table.
+        for (var g = 0; g < plan.FkGroups.Count; g++)
+        {
+            if (!MariaDbDataScript.FkRequired(plan, g)) continue;
+            var fk = plan.FkGroups[g];
+            var r = await RunMy(id, database, MariaDbDataScript.HasRowsSql(fk.RefSchema, fk.RefTable), ct);
+            if (!r.IsSuccess) return r;
+            if (FirstTable(r) is { Rows.Count: > 0 } t && t.Rows[0][0] == "0")
+                return Fail($"The referenced table {fk.RefSchema}.{fk.RefTable} has no rows. Populate it first.");
+        }
+
+        var (script, error) = MariaDbDataScript.BuildInsert(schema, table, plan, rows, Random.Shared);
+        if (script is null) return Fail(error ?? "Could not build insert script.");
+
+        var result = await RunMy(id, database, script, ct);
         return result.IsSuccess ? result with { StdOut = $"Inserted {rows} random row{(rows == 1 ? "" : "s")} into {schema}.{table}." } : result;
     }
 

@@ -1,25 +1,19 @@
 namespace DbServeApp.Services.Dbms;
 
-// TODO (next iteration): implement MariaDbProvider.
-//  - image mariadb:<tag>, container port 3306, volume at /var/lib/mysql, env MARIADB_ROOT_PASSWORD / MARIADB_DATABASE
-//  - ExecuteSqlAsync via `docker exec -i -e MYSQL_PWD=... <c> mariadb -uroot <db>` (SQL on stdin)
-//  - readiness via `healthcheck.sh --connect` or `mariadb-admin ping`
-// Not registered in DI yet, so it does not appear in the UI.
-public sealed class MariaDbProvider : IDbmsProvider
+public sealed class MariaDbProvider(IWslDockerRunner docker, ILogger<MariaDbProvider> log) : MySqlFamilyProvider(docker, log)
 {
-    public string Key => "mariadb";
-    public string DisplayName => "MariaDB";
-    public int DefaultPort => 3306;
-    public string DefaultImageTag => "11";
-    public string DefaultDatabase => "mysql";
-    public string ImageName => "docker.io/library/mariadb";
-    public string AdminUser => "root";
-    public string NamePrefix => "maria";
+    public const string ProviderKey = "mariadb";
 
-    public Task<InstanceCreateResult> CreateAsync(InstanceCreateRequest req, CancellationToken ct) => throw new NotImplementedException();
-    public Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct) => throw new NotImplementedException();
-    public Task<InstanceActionResult> StopAsync(DbInstance instance, CancellationToken ct) => throw new NotImplementedException();
-    public Task<InstanceActionResult> DeleteAsync(DbInstance instance, bool deleteVolume, CancellationToken ct) => throw new NotImplementedException();
-    public Task<QueryResult> ExecuteSqlAsync(DbInstance instance, string sql, CancellationToken ct) => throw new NotImplementedException();
-    public string BuildConnectionString(DbInstance instance, bool maskPassword) => throw new NotImplementedException();
+    public override string Key => ProviderKey;
+    public override string DisplayName => "MariaDB";
+    public override string DefaultImageTag => "11";
+    // Fully qualified so Podman does not depend on unqualified-search-registries.
+    public override string ImageName => "docker.io/library/mariadb";
+    public override string NamePrefix => "maria";
+
+    protected override string RootPasswordEnv => "MARIADB_ROOT_PASSWORD";
+    protected override string DatabaseEnv => "MARIADB_DATABASE";
+    protected override string[] ClientCandidates => ["mariadb", "mysql"];
+    protected override string[] ClientExtraArgs => ["--skip-ssl"];
+    protected override string StatementTimeoutSql(int seconds) => $"SET SESSION max_statement_time={seconds}";
 }
