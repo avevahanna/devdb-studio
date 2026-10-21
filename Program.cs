@@ -23,6 +23,7 @@ builder.Services.AddSingleton<IDbmsProvider, MssqlProvider>();
 builder.Services.AddSingleton<IDbmsProvider, PostgresProvider>();
 builder.Services.AddSingleton<IDbmsProvider, MariaDbProvider>();
 builder.Services.AddSingleton<IDbmsProvider, MySqlProvider>();
+builder.Services.AddSingleton<IDbmsProvider, MongoDbProvider>();
 builder.Services.AddSingleton<IInstanceManager, InstanceManager>();
 builder.Services.AddSingleton<ITableDataService, TableDataService>();
 builder.Services.AddSingleton<IDbInsightService, DbInsightService>();

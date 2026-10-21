@@ -4,14 +4,14 @@
 @inject IJSRuntime JS
 
 <div class="result">
-    @if (_blocks.Count > 0)
+    @if (_blocks.Count > 0 && !Raw)
     {
         <div class="seg result__bar">
             <button type="button" class="seg__btn @(!_raw ? "seg__btn--on" : "")" @onclick="() => _raw = false">Table</button>
             <button type="button" class="seg__btn @(_raw ? "seg__btn--on" : "")" @onclick="() => _raw = true">Raw</button>
         </div>
     }
-    @if (_raw)
+    @if (_raw || Raw)
     {
         <pre class="logs logs--nowrap">@Output</pre>
     }
@@ -52,10 +52,12 @@
 
 @code {
     [Parameter, EditorRequired] public string Output { get; set; } = "";
+    /// <summary>Show the output as plain text instead of parsing it into tables (document databases).</summary>
 
     private IReadOnlyList<ResultBlock> _blocks = [];
     private string? _parsedFor;
     private bool _raw;
+    [Parameter] public bool Raw { get; set; }
 
     private async Task ExportAsync(ResultTable t, bool json)
     {

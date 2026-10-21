@@ -64,7 +64,7 @@ else if (_instances.Count == 0)
                 <span class="step__n">2</span>
                 <div class="step__body">
                     <strong>Create your first instance</strong>
-                    <span class="muted">Pick SQL Server, PostgreSQL, MariaDB or MySQL.</span>
+                    <span class="muted">Pick SQL Server, PostgreSQL, MariaDB, MySQL or MongoDB.</span>
                 </div>
                 <a class="btn btn-sm btn-primary" href="/instances/create">Create instance</a>
             </li>
@@ -119,7 +119,10 @@ else
                     <button class="btn btn-sm btn-primary" disabled="@(_busy || i.Status == InstanceStatus.NotFound)" @onclick="() => StartAsync(i)">Start</button>
                 }
                 <a class="btn btn-sm" href="/query?instance=@i.Id">Query</a>
-                <a class="btn btn-sm" href="/tables?instance=@i.Id">Design table</a>
+                @if (provider?.SupportsTables ?? true)
+                {
+                    <a class="btn btn-sm" href="/tables?instance=@i.Id">Design table</a>
+                }
                 <span class="spacer"></span>
                 <button class="btn btn-sm btn-outline-danger" disabled="@_busy" @onclick="() => AskDelete(i)">Delete</button>
             </footer>

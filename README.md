@@ -8,9 +8,9 @@ Built with .NET 10 Blazor Server (interactive server rendering), running on Wind
 
 - **Setup** (`/setup`) – prerequisite checker for WSL, the Ubuntu distro, the container engine (Docker or Podman: CLI, daemon/`info`, Compose). Failed checks show why it matters and exact fix commands. The **Container engine** selector switches between auto-detect (a working Docker is preferred, then Podman), Docker and Podman; the choice is saved in `settings.json` next to the instances file.
 - **Instances** (`/instances`, `/instances/create`) – create, start, stop and delete database instances. Cards show the DBMS, status, port, and a connection string with reveal and copy-to-clipboard.
-- **Query** (`/query`) – run SQL against a running instance and view results as tables (with a raw-output toggle). Uses `sqlcmd` for SQL Server, `psql` for PostgreSQL, `mariadb` for MariaDB and `mysql` for MySQL. Run with **Ctrl+Enter**, pick the database from a list of the instance's databases, re-use the last 20 queries per instance (history) or named snippets (both stored in the browser's local storage), and download any result table as **CSV** or **JSON**.
+- **Query** (`/query`) – run SQL against a running instance and view results as tables (with a raw-output toggle). Uses `sqlcmd` for SQL Server, `psql` for PostgreSQL, `mariadb` for MariaDB and `mysql` for MySQL and `mongosh` (JavaScript, e.g. `db.customers.insertOne({ name: "Anna" })` and `db.customers.find()`) for MongoDB, whose output is shown as plain text. Run with **Ctrl+Enter**, pick the database from a list of the instance's databases, re-use the last 20 queries per instance (history) or named snippets (both stored in the browser's local storage), and download any result table as **CSV** or **JSON**.
 - **Tables** (`/tables`) – visual table designer that generates a `CREATE TABLE` script (T-SQL, PostgreSQL, MariaDB or MySQL, depending on the instance) and runs it.
-- **Table data** (`/data`) – pick a table and either fill it with 1–10,000 random rows or clear all of its data (with confirmation). Works for SQL Server, PostgreSQL, MariaDB and MySQL.
+- **Table data** (`/data`) – pick a table and either fill it with 1–10,000 random rows or clear all of its data (with confirmation). Works for SQL Server, PostgreSQL, MariaDB and MySQL (not MongoDB; use the Query page there).
   - Values are chosen from each column's name and type (e.g. `email`, `city`, `price`, `birthDate`) and respect length and precision. Identity/serial, generated and computed columns are skipped.
   - Foreign keys, including composite ones, point at real rows in the referenced table; if it is empty you are asked to populate it first.
   - Unique indexes and primary keys are honoured: unique columns continue above the existing maximum (or get unique suffixes/UUIDs). On SQL Server, foreign-key-only unique indexes (junction tables) get distinct combinations; on PostgreSQL, MariaDB and MySQL such indexes are reported as unsupported. If uniqueness can't be guaranteed you get a clear error.
@@ -28,6 +28,7 @@ Built with .NET 10 Blazor Server (interactive server rendering), running on Wind
 | PostgreSQL | Implemented |
 | MariaDB | Implemented |
 | MySQL | Implemented |
+| MongoDB | Implemented (Query with mongosh, Status insights; no table designer or table data) |
 
 New DBMS support is added by implementing `IDbmsProvider` (`Services/Dbms`) and registering it in `Program.cs`.
 
@@ -74,14 +75,14 @@ The xUnit suite covers the pure logic (input validation, SQL generation and vali
 - `Services/DockerService.cs`, `PrerequisiteCheckService.cs` – Status page data and Setup checks.
 - `Components/Pages`, `Components/Shared` – UI. Styling in `wwwroot/app.css`.
 
-SQL Server containers are created with a named volume at `/var/opt/mssql`, named `dbapp-mssql-<shortId>`, and published on `127.0.0.1:<port>` only. Queries run through `sqlcmd` inside the container. PostgreSQL containers use `docker.io/library/postgres:<tag>` (default `17`), user `postgres`, a named volume (`/var/lib/postgresql/data`, or `/var/lib/postgresql` for 18+) named `dbapp-postgres-<shortId>`, and queries run through `psql` inside the container. MariaDB containers use `docker.io/library/mariadb:<tag>` (default `11`), user `root`, a named volume at `/var/lib/mysql` named `dbapp-mariadb-<shortId>`, and queries run through the `mariadb` client inside the container (a schema in MariaDB is the database itself). MySQL containers use `docker.io/library/mysql:<tag>` (default `8.4`), user `root`, a volume named `dbapp-mysql-<shortId>`, and the `mysql` client; they behave like MariaDB. Containers belong to the engine that created them: after switching between Docker and Podman, instances created with the other engine show as not found until you switch back.
+SQL Server containers are created with a named volume at `/var/opt/mssql`, named `dbapp-mssql-<shortId>`, and published on `127.0.0.1:<port>` only. Queries run through `sqlcmd` inside the container. PostgreSQL containers use `docker.io/library/postgres:<tag>` (default `17`), user `postgres`, a named volume (`/var/lib/postgresql/data`, or `/var/lib/postgresql` for 18+) named `dbapp-postgres-<shortId>`, and queries run through `psql` inside the container. MariaDB containers use `docker.io/library/mariadb:<tag>` (default `11`), user `root`, a named volume at `/var/lib/mysql` named `dbapp-mariadb-<shortId>`, and queries run through the `mariadb` client inside the container (a schema in MariaDB is the database itself). MySQL containers use `docker.io/library/mysql:<tag>` (default `8.4`), user `root`, a volume named `dbapp-mysql-<shortId>`, and the `mysql` client; they behave like MariaDB. MongoDB containers use `docker.io/library/mongo:<tag>` (default `8`), root user `root` (authentication database `admin`), a volume at `/data/db` named `dbapp-mongodb-<shortId>`, and queries run as mongosh JavaScript inside the container (output is shown as plain text; the database appears once it holds data). Containers belong to the engine that created them: after switching between Docker and Podman, instances created with the other engine show as not found until you switch back.
 
 ## Security notes
 
 - The app only accepts loopback requests and rejects cross-origin requests by default.
 - SA / `postgres` / `root` passwords are stored in **plain text** in `instances.json` (v1) and are visible in `docker inspect`. Use this for local development only.
 - The Query and Tables pages run arbitrary SQL by design. The Table data page can delete all rows of a table.
-- Connect from Windows with `127.0.0.1,<port>` for SQL Server or `127.0.0.1:<port>` for PostgreSQL, MariaDB and MySQL (not `localhost`, which may resolve to IPv6).
+- Connect from Windows with `127.0.0.1,<port>` for SQL Server, `127.0.0.1:<port>` for PostgreSQL, MariaDB, MySQL and MongoDB (not `localhost`, which may resolve to IPv6).
 
 ## Out of scope
 

@@ -9,6 +9,14 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.1.0
+
+- Added **MongoDB** support (`docker.io/library/mongo`, default tag `8`): create, start, stop and delete; connection string includes the database and `authSource=admin`.
+- Query page runs mongosh JavaScript for MongoDB instances and shows the output as plain text; database list and Status page insights (connections, databases, size) work for MongoDB.
+- Table designer and Table data skip MongoDB instances; providers gained `SupportsTables`, `QueryLanguage` and `SampleQuery`.
+- The MongoDB sample query now also shows commented insert and find examples.
+- 8 new tests (131 total).
+
 ## 1.0.1
 
 - Added an automated xUnit test suite (`tests\DbServeApp.Tests`, 123 tests).

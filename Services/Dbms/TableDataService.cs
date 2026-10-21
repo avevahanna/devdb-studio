@@ -42,6 +42,11 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
 
     public async Task<IReadOnlyList<string>> ListDatabasesAsync(Guid instanceId, CancellationToken ct = default)
     {
+        if (await DbmsKeyAsync(instanceId, ct) == MongoDbProvider.ProviderKey)
+        {
+            var mr = await manager.ExecuteSqlAsync(instanceId, MongoScripts.ListDatabases, ct);
+            return mr.IsSuccess ? MongoScripts.ParseDatabases(mr.StdOut) : [];
+        }
         var sql = await DbmsKeyAsync(instanceId, ct) switch
         {
             PostgresProvider.ProviderKey => "SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1;",

@@ -35,6 +35,11 @@ public sealed class DbInsightService(IInstanceManager manager) : IDbInsightServi
 
     public async Task<DbInsight> GetAsync(DbInstance instance, CancellationToken ct = default)
     {
+        if (instance.DbmsKey == MongoDbProvider.ProviderKey)
+        {
+            var mr = await manager.ExecuteSqlAsync(instance.Id, MongoScripts.Insight, ct);
+            return mr.IsSuccess ? MongoScripts.ParseInsight(mr.StdOut) : DbInsight.Fail((mr.StdErr + "\n" + mr.StdOut).Trim());
+        }
         var sql = instance.DbmsKey switch
         {
             PostgresProvider.ProviderKey => Postgres,

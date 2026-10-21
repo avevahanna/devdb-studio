@@ -11,7 +11,7 @@
 <div class="page-header">
     <div>
         <h1>Query</h1>
-        <p>Run SQL against a running instance using the DBMS command-line client inside the container.</p>
+        <p>Run SQL (or mongosh commands for MongoDB) against a running instance using the DBMS command-line client inside the container.</p>
     </div>
 </div>
 
@@ -48,7 +48,7 @@ else
                     @foreach (var d in _databases) { <option value="@d"></option> }
                 </datalist>
             </label>
-            <label class="field">SQL
+            <label class="field">@(SelectedProvider?.QueryLanguage ?? "SQL")
                 <textarea rows="10" @bind="_sql" @bind:event="oninput" spellcheck="false" disabled="@_busy" data-run-target="#run-query"></textarea>
             </label>
             <div class="toolbar">
@@ -78,7 +78,7 @@ else
                 @if (!string.IsNullOrWhiteSpace(_result.StdOut))
                 {
                     <h4>Output</h4>
-                    <ResultView Output="@_result.StdOut" />
+                    <ResultView Output="@_result.StdOut" Raw="@(SelectedProvider?.SupportsTables == false)" />
                 }
                 @if (!string.IsNullOrWhiteSpace(_result.StdErr))
                 {
@@ -158,6 +158,12 @@ else
     private const string MssqlSample = "SELECT @@VERSION AS version;";
     private const string PostgresSample = "SELECT version();";
     private const string MariaDbSample = "SELECT VERSION() AS version;";
+    private const string MongoSample =
+        "// Server version\ndb.runCommand({ buildInfo: 1 }).version\n\n" +
+        "// Add a document (the collection is created automatically)\n" +
+        "// db.customers.insertOne({ name: \"Anna\", age: 30 })\n\n" +
+        "// Find all customers\n" +
+        "// db.customers.find().toArray()";
     private string _sql = MssqlSample;
     private string _database = "";
     private bool _busy, _refreshing, _rendered;
@@ -174,6 +180,7 @@ else
     private string HistoryKey => $"dbserve-history-{_selected}";
 
     private DbInstance? SelectedInstance => _instances?.FirstOrDefault(i => i.Id == _selected);
+    private IDbmsProvider? SelectedProvider => SelectedInstance is null ? null : Manager.GetProvider(SelectedInstance.DbmsKey);
     private bool CanRun => SelectedInstance?.Status == InstanceStatus.Running && !string.IsNullOrWhiteSpace(_sql);
 
     private static string Preview(string sql)
@@ -261,11 +268,12 @@ else
     // Swap the untouched sample query when switching between DBMSs.
     private void UseSampleForInstance()
     {
-        if (_sql is MssqlSample or PostgresSample or MariaDbSample)
+        if (_sql is MssqlSample or PostgresSample or MariaDbSample or MongoSample)
             _sql = SelectedInstance?.DbmsKey switch
             {
                 PostgresProvider.ProviderKey => PostgresSample,
                 MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey => MariaDbSample,
+                MongoDbProvider.ProviderKey => MongoSample,
                 _ => MssqlSample,
             };
     }
@@ -301,9 +309,12 @@ else
         _busy = true;
         _result = null;
         var db = _database.Trim();
+        var key = SelectedInstance?.DbmsKey;
         var sql = db.Length == 0 || db == SelectedInstance?.DatabaseName
             ? _sql
-            : TableDialect.For(SelectedInstance?.DbmsKey).Use(db) + _sql;
+            : key == MongoDbProvider.ProviderKey
+                ? $"db = db.getSiblingDB(\"{db.Replace("\\", "").Replace("\"", "")}\");\n{_sql}"
+                : TableDialect.For(key).Use(db) + _sql;
         try { _result = await Manager.ExecuteSqlAsync(_selected, sql, _cts.Token); }
         catch (OperationCanceledException) { return; }
         catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }

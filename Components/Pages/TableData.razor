@@ -19,7 +19,7 @@
 }
 else if (_instances.Count == 0)
 {
-    <div class="card"><div class="card__note" style="padding-top:14px">No instances yet. <a href="/instances/create">Create one</a> first.</div></div>
+    <div class="card"><div class="card__note" style="padding-top:14px">    No SQL instances yet (MongoDB instances are not supported here). <a href="/instances/create">Create one</a> first.</div></div>
 }
 else
 {
@@ -106,12 +106,15 @@ else
     private bool _busy, _confirmClear;
     private QueryResult? _result;
 
+    private IReadOnlyList<DbInstance> SqlOnly(IReadOnlyList<DbInstance> all) =>
+        all.Where(i => Manager.GetProvider(i.DbmsKey)?.SupportsTables ?? true).ToList();
+
     private DbInstance? SelectedInstance => _instances?.FirstOrDefault(i => i.Id == _selected);
     private bool Running => SelectedInstance?.Status == InstanceStatus.Running;
 
     protected override async Task OnInitializedAsync()
     {
-        _instances = (await Manager.RefreshStatusAsync(_cts.Token)).Instances;
+        _instances = SqlOnly((await Manager.RefreshStatusAsync(_cts.Token)).Instances);
         _selected = _instances.FirstOrDefault(i => i.Id == InstanceId)?.Id
             ?? _instances.FirstOrDefault(i => i.Status == InstanceStatus.Running)?.Id
             ?? _instances.FirstOrDefault()?.Id ?? Guid.Empty;

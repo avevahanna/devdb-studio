@@ -12,6 +12,12 @@ public interface IDbmsProvider
     string ImageName { get; }
     string AdminUser { get; }
     string NamePrefix { get; }
+    /// <summary>False for non-relational DBMSs: the table designer and table data tools do not apply.</summary>
+    bool SupportsTables => true;
+    /// <summary>Name of the language the Query page accepts.</summary>
+    string QueryLanguage => "SQL";
+    /// <summary>Harmless example shown in a fresh query editor; null falls back to the Query page default.</summary>
+    string? SampleQuery => null;
 
     Task<InstanceCreateResult> CreateAsync(InstanceCreateRequest req, CancellationToken ct);
     Task<InstanceActionResult> StartAsync(DbInstance instance, CancellationToken ct);
