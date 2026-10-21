@@ -9,6 +9,9 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.8.2
+- Fixed the Instances "Get started" checklist layout (missing side padding and duplicated step numbers): it shared the `.steps` CSS class with the Help page and now uses its own `.checklist` class.
+
 ## 1.8.1
 - Removed WSL branding from the general UI (sidebar, top bar, page subtitles, Status, Help overview). WSL is now mentioned only where it is functionally relevant: the Setup page on Windows.
 
