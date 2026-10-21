@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -392,7 +392,7 @@ public sealed partial class DockerService : IDockerService
         return S(e, names);
     }
 
-    private static HostInfo? ParseHost(string json)
+    internal static HostInfo? ParseHost(string json)
     {
         try
         {
@@ -447,7 +447,7 @@ public sealed partial class DockerService : IDockerService
         return Text(labels).Split(',').FirstOrDefault(l => l.StartsWith("com.docker.compose.project=", StringComparison.Ordinal))?.Split('=', 2)[1] ?? "";
     }
 
-    private static ContainerInfo ParseContainer(JsonElement e)
+    internal static ContainerInfo ParseContainer(JsonElement e)
     {
         var state = S(e, "state");
         var status = S(e, "status");
@@ -456,7 +456,7 @@ public sealed partial class DockerService : IDockerService
             Find(e, ["command"]) is { } c ? Text(c, " ") : "", S(e, "networks"), ComposeProject(e));
     }
 
-    private static ContainerStat ParseStat(JsonElement e)
+    internal static ContainerStat ParseStat(JsonElement e)
     {
         var (memUsed, memLimit) = Pair(S(e, "memusage"));
         var (rx, tx) = Pair(S(e, "netio"));
@@ -470,7 +470,7 @@ public sealed partial class DockerService : IDockerService
     private static DiskUsage ParseDisk(JsonElement e) =>
         new(S(e, "type"), (int)N(e, "totalcount", "total"), (int)N(e, "active"), SizeText(e, "size"), S(e, "reclaimable"));
 
-    private static ImageInfo ParseImage(JsonElement e)
+    internal static ImageInfo ParseImage(JsonElement e)
     {
         var repo = S(e, "repository");
         var tag = S(e, "tag");
@@ -485,9 +485,9 @@ public sealed partial class DockerService : IDockerService
         return new(S(e, "id"), repo, tag, SizeText(e, "size"), EpochOrText(e, "createdsince", "createdat", "created"));
     }
 
-    private static VolumeInfo ParseVolume(JsonElement e) => new(S(e, "name"), S(e, "driver")) { Mountpoint = S(e, "mountpoint") };
+    internal static VolumeInfo ParseVolume(JsonElement e) => new(S(e, "name"), S(e, "driver")) { Mountpoint = S(e, "mountpoint") };
 
-    private static NetworkInfo ParseNetwork(JsonElement e)
+    internal static NetworkInfo ParseNetwork(JsonElement e)
     {
         var scope = S(e, "scope");
         return new(S(e, "id"), S(e, "name"), S(e, "driver"), scope.Length > 0 ? scope : "local");

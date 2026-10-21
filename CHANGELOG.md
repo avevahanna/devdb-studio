@@ -9,6 +9,11 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.0.1
+
+- Added an automated xUnit test suite (`tests\DbServeApp.Tests`, 123 tests).
+- Fixed: saving the instance list could occasionally fail on Windows when the file was briefly locked; the save is now retried.
+
 ## 1.0.0
 
 First versioned release: SQL Server, PostgreSQL, MariaDB and MySQL on Docker or Podman in WSL2; query, table designer and

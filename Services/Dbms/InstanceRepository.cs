@@ -119,8 +119,25 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         var tmp = _path + ".tmp";
         await using (var fs = File.Create(tmp))
             await JsonSerializer.SerializeAsync(fs, list, Json, ct);
-        File.Move(tmp, _path, overwrite: true);
+        await ReplaceFileAsync(tmp, _path, ct);
         // Only replace the cache once the file is written, so a failed save leaves memory and disk consistent.
         _cache = list;
+    }
+
+    // On Windows a virus scanner or indexer can hold the freshly written file for a moment and make the move fail.
+    private static async Task ReplaceFileAsync(string source, string destination, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(source, destination, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 6)
+            {
+                await Task.Delay(25 * attempt, ct);
+            }
+        }
     }
 }

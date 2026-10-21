@@ -47,6 +47,14 @@ dotnet run
 
 Then open <http://localhost:5190>.
 
+## Tests
+
+```powershell
+dotnet test tests\DbServeApp.Tests
+```
+
+The xUnit suite covers the pure logic (input validation, SQL generation and validation per DBMS, result-output parsing, container engine JSON parsing for Docker and Podman, the instance JSON store and the database insight queries). It needs neither WSL nor a running container engine. Add tests alongside every change.
+
 ## Configuration (`appsettings.json`)
 
 | Key | Default | Description |

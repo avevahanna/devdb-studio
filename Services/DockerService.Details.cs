@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 
 namespace DbServeApp.Services;
@@ -116,7 +116,7 @@ public sealed partial class DockerService
     private static DateTimeOffset? Date(string s) =>
         DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) && d.Year > 1 ? d : null;
 
-    private static ContainerDetail ParseDetail(JsonElement e)
+    internal static ContainerDetail ParseDetail(JsonElement e)
     {
         var state = Find(e, ["state"]) ?? default;
         var host = Find(e, ["hostconfig"]) ?? default;
@@ -194,7 +194,7 @@ public sealed partial class DockerService
         return result;
     }
 
-    private static (string Id, NetworkExtra Extra) ParseNetworkExtra(JsonElement e)
+    internal static (string Id, NetworkExtra Extra) ParseNetworkExtra(JsonElement e)
     {
         string subnet = "", gateway = "";
         var ipam = Find(e, ["ipam"]) ?? default;
@@ -260,7 +260,7 @@ public sealed partial class DockerService
         }
     }
 
-    private static DockerEvent ParseEvent(JsonElement e)
+    internal static DockerEvent ParseEvent(JsonElement e)
     {
         var attrs = Find(Find(e, ["actor"]) ?? default, ["attributes"]) ?? default;
         var name = S(attrs, "name");
