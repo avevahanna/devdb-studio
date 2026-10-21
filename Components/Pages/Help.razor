@@ -26,8 +26,8 @@
             <h2>Overview</h2>
             <p>
                 DevDb Studio creates and manages <strong>database servers as containers</strong>. Each server runs in Docker or Podman
-                @(EngineHost.UsesWsl ? "inside a WSL2 Linux distro on this computer" : "on this computer"). Pick a database system, give it a password, and it is ready in a minute.
-                @(EngineHost.UsesWsl ? "Nothing is installed on Windows itself." : "Nothing but the container engine is installed on the host.")
+                on this computer. Pick a database system, give it a password, and it is ready in a minute.
+                Nothing but the container engine is installed on the host.
             </p>
             <div class="help__facts">
                 <div><strong>Local only</strong><span>Every server is published on <code>127.0.0.1</code>, so only this computer can reach it.</span></div>
@@ -41,7 +41,7 @@
             <ol class="steps">
                 <li>
                     <h3>Check the setup</h3>
-                    <p>Open <a href="setup">Setup</a>. @(EngineHost.UsesWsl ? "It checks that WSL2, a Linux distro and Docker or Podman are available. The distro and engine are detected automatically; override them with the selectors on that page if you have several." : "It checks that Docker or Podman is installed and usable by your user. The engine is detected automatically; override it on that page if you have both.") Follow the install hints for anything marked as failed, then run the check again.</p>
+                    <p>Open <a href="setup">Setup</a>. It checks that a container engine (Docker or Podman) is installed and usable. The engine is detected automatically; override it on that page if you have both. On Windows the engine runs inside a WSL2 Linux distro, so Setup also checks WSL2 and lets you pick the distro. On Linux it runs directly on the host and WSL is not used. Follow the install hints for anything marked as failed, then run the check again.</p>
                 </li>
                 <li>
                     <h3>Create a server</h3>
@@ -88,7 +88,7 @@
                 </article>
                 <article class="help__tile">
                     <h3><a href="setup">Setup</a></h3>
-                    <p>Checks prerequisites and lets you choose @(EngineHost.UsesWsl ? "the WSL distro and " : "")the container engine. The choices are saved.</p>
+                    <p>Checks prerequisites and lets you choose the container engine (and, on Windows, the WSL distro). The choices are saved.</p>
                 </article>
                 <article class="help__tile">
                     <h3><a href="status">Status</a></h3>
@@ -177,11 +177,11 @@
                 </div>
                 <div>
                     <dt>Setup shows a failed check</dt>
-                    <dd>Read the hint next to it, fix it @(EngineHost.UsesWsl ? "in your WSL distro" : "on your machine"), and run the check again. Choose a specific @(EngineHost.UsesWsl ? "distro or " : "")engine on the Setup page if auto-detection picks the wrong one.</dd>
+                    <dd>Read the hint next to it, fix it, and run the check again. Choose a specific engine (and, on Windows, distro) on the Setup page if auto-detection picks the wrong one.</dd>
                 </div>
                 <div>
                     <dt>An instance shows "not found"</dt>
-                    <dd>It was created with another container engine@(EngineHost.UsesWsl ? " or distro" : ""). Switch back on the Setup page, or delete the entry.</dd>
+                    <dd>It was created with another container engine (or, on Windows, another WSL distro). Switch back on the Setup page, or delete the entry.</dd>
                 </div>
                 <div>
                     <dt>The Query page shows an error in plain text (MongoDB, Redis)</dt>

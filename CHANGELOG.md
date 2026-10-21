@@ -9,6 +9,9 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.8.1
+- Removed WSL branding from the general UI (sidebar, top bar, page subtitles, Status, Help overview). WSL is now mentioned only where it is functionally relevant: the Setup page on Windows.
+
 ## 1.8.0
 - **Linux support.** On Linux the app runs `docker`/`podman` directly on the host; on Windows it still uses WSL2. The OS is detected automatically (`EngineHost`), nothing to configure.
 - Setup page: native prerequisite checks on Linux (engine CLI, daemon access incl. `docker` group hint, rootless Podman hint, Compose); the WSL distro selector, keep-alive session and WSL wording are hidden/changed on Linux.
