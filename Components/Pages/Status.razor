@@ -549,11 +549,29 @@ else
                 }
                 else if (_tab == "volumes")
                 {
-                    <thead><tr><th>Name</th><th>Driver</th><th>Size</th><th>Used by</th><th>Mountpoint</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Driver</th><th>Size</th><th>Used by</th><th>Mountpoint</th><th></th></tr></thead>
                     <tbody>
                     @foreach (var v in _snap.Volumes)
                     {
-                        <tr><td><code>@v.Name</code></td><td>@v.Driver</td><td>@(v.Size.Length > 0 ? v.Size : "–")</td><td>@UsedBy(v.UsedBy)</td><td class="small"><code>@v.Mountpoint</code></td></tr>
+                        var vn = v.Name;
+                        <tr>
+                            <td><code>@v.Name</code></td><td>@v.Driver</td><td>@(v.Size.Length > 0 ? v.Size : "–")</td><td>@UsedBy(v.UsedBy)</td><td class="small"><code>@v.Mountpoint</code></td>
+                            <td class="right actions">
+                                @if (v.UsedBy.Count > 0)
+                                {
+                                    <span class="muted small">in use</span>
+                                }
+                                else if (_confirmVolume == vn)
+                                {
+                                    <button class="btn btn-sm btn-danger" disabled="@_busy" @onclick="() => RemoveVolumeAsync(vn)">Confirm delete</button>
+                                    <button class="btn btn-sm" @onclick="() => _confirmVolume = null">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" disabled="@_busy" title="Permanently deletes the volume and its data" @onclick="() => _confirmVolume = vn">Delete</button>
+                                }
+                            </td>
+                        </tr>
                     }
                     </tbody>
                 }
@@ -599,7 +617,7 @@ else
     }
     private int _intervalSeconds = 5;
     private string _filter = "all", _search = "", _tab = "images";
-    private string? _confirm, _selected, _logText, _toast;
+    private string? _confirm, _confirmVolume, _selected, _logText, _toast;
     private bool _toastOk = true;
     private readonly List<double> _fleetCpu = [], _fleetMem = [];
     private readonly Dictionary<string, List<double>> _cpuHist = [];
@@ -832,6 +850,25 @@ else
         finally { _busy = false; }
         await RefreshAsync(force: true);
     }
+    private async Task RemoveVolumeAsync(string name)
+    {
+        if (_disposed) return;
+        _confirmVolume = null;
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            var r = await Docker.RemoveVolumeAsync(name, _cts.Token);
+            if (_disposed) return;
+            _toast = r.Message;
+            _toastOk = r.Success;
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex) { _toast = $"Volume removal failed: {ex.Message}"; _toastOk = false; }
+        finally { _busy = false; }
+        await RefreshAsync(force: true);
+    }
+
     private async Task SelectAsync(string? id, string view)
     {
         if (id is null) return;

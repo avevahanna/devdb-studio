@@ -9,6 +9,10 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.5.0
+
+- **Volumes can be deleted** on the Status page (Volumes tab): each volume that no container uses has a Delete button with confirmation. Use it to clean up data volumes that were kept when an instance was deleted.
+
 ## 1.4.0
 
 - New **Help** page (`/help`, under a new "Help" section in the sidebar below "System"): step-by-step usage guide, a description of every page, a card per DBMS with its logo, defaults, client and example, connection addresses, data handling and troubleshooting.

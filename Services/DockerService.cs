@@ -67,6 +67,8 @@ public interface IDockerService
     /// <summary>Shared, cached snapshot. <paramref name="force"/> bypasses the cache and also reloads slow-changing data.</summary>
     Task<DockerSnapshot> GetSnapshotAsync(bool force = false, CancellationToken ct = default);
     Task<ActionResult> ExecuteAsync(string containerId, ContainerAction action, CancellationToken ct = default);
+    /// <summary>Deletes a volume that no container uses. The data in it is lost.</summary>
+    Task<ActionResult> RemoveVolumeAsync(string volumeName, CancellationToken ct = default);
     Task<string> GetLogsAsync(string containerId, int tail = 200, CancellationToken ct = default);
     /// <summary>Returns docker inspect JSON with environment variable values masked.</summary>
     Task<string> GetInspectAsync(string containerId, CancellationToken ct = default);
@@ -245,6 +247,17 @@ public sealed partial class DockerService : IDockerService
         return r.ExitCode == 0
             ? new(true, $"{action} succeeded for {containerId}.")
             : new(false, $"{action} failed: {Err(r)}");
+    }
+
+    public async Task<ActionResult> RemoveVolumeAsync(string volumeName, CancellationToken ct = default)
+    {
+        if (!SafeId().IsMatch(volumeName)) return new(false, "Invalid volume name.");
+        var r = await Docker(ct, SlowTimeout, "volume", "rm", volumeName);
+        logger.LogInformation("Volume remove {Volume}: exit {ExitCode}, timedOut {TimedOut}", volumeName, r.ExitCode, r.TimedOut);
+        if (r.TimedOut) return new(false, "Removing the volume timed out. Check the refreshed status.");
+        return r.ExitCode == 0
+            ? new(true, $"Volume {volumeName} removed.")
+            : new(false, $"Could not remove volume {volumeName}: {Err(r)}");
     }
 
     public async Task<string> GetLogsAsync(string containerId, int tail = 200, CancellationToken ct = default)
