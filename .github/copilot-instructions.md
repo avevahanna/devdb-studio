@@ -5,7 +5,7 @@ DevDb Studio is a .NET Blazor Server app that creates and manages database serve
 ## Tech stack
 - .NET 10 (`net10.0`), ASP.NET Core Blazor Server (interactive server components), C# with `Nullable` and `ImplicitUsings` enabled. Single project: `DevDbStudio.csproj`.
 - No database or ORM of its own: instances are stored in a JSON file (`Services/Dbms/InstanceRepository.cs`); settings in `settings.json`.
-- All container/DB work is done by shelling out to `wsl.exe` (`Services/ProcessRunner.cs`).
+- All container/DB work is done by shelling out through `Services/EngineHost.cs` (`wsl.exe` on Windows, `docker`/`podman` directly on Linux) via `Services/ProcessRunner.cs`.
 - Tests: xUnit 2.9 on `net10.0` in `tests/DevDbStudio.Tests`. CI: `.github/workflows/ci.yml` (ubuntu-latest).
 - Frontend: plain CSS (`wwwroot/app.css`) and small JS helpers (`wwwroot/app.js`, namespace `devDbStudio`). No npm or build step.
 

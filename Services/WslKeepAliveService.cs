@@ -9,7 +9,7 @@ public sealed class WslKeepAliveService(IOptions<WslOptions> options, IContainer
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_opt.KeepAlive) return;
+        if (!_opt.KeepAlive || !EngineHost.UsesWsl) return;
 
         while (!stoppingToken.IsCancellationRequested)
         {

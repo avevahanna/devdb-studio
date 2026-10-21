@@ -10,9 +10,11 @@
 <div class="page-header">
     <div>
         <h1>Setup status</h1>
-        <p>Checks that WSL2, a Linux distro and a container engine (Docker or Podman) are ready to host database servers. Both the distro and the engine are detected automatically.</p>
+        <p>@(EngineHost.UsesWsl ? "Checks that WSL2, a Linux distro and a container engine (Docker or Podman) are ready to host database servers. Both the distro and the engine are detected automatically." : "Checks that a container engine (Docker or Podman) is installed and usable by your user. The engine is detected automatically.")</p>
     </div>
     <div class="toolbar">
+        @if (EngineHost.UsesWsl)
+        {
         <label class="field">
             WSL distro
             <select value="@Engine.DistroChoice" @onchange="OnDistroChanged" disabled="@_running">
@@ -24,6 +26,7 @@
                 }
             </select>
         </label>
+        }
         <label class="field">
             Container engine
             <select value="@Engine.Choice" @onchange="OnEngineChanged" disabled="@_running">
@@ -43,8 +46,8 @@
 {
     <p class="muted">
         Using <strong>@ContainerEngines.DisplayName(_effective)</strong>@(Engine.Choice == EngineChoice.Auto ? " (auto-detected)" : "")
-        in <strong>@_effectiveDistro</strong>@(ContainerEngines.IsAuto(Engine.DistroChoice) ? " (auto-detected)" : "").
-        Instances live in the engine and distro that created them, so switching either hides existing instances (they show as not found) until you switch back.
+        in <strong>@(EngineHost.UsesWsl ? _effectiveDistro : "this computer")</strong>@(EngineHost.UsesWsl && ContainerEngines.IsAuto(Engine.DistroChoice) ? " (auto-detected)" : "").
+        Instances live in the engine @(EngineHost.UsesWsl ? "and distro " : "")that created them, so switching @(EngineHost.UsesWsl ? "either" : "it") hides existing instances (they show as not found) until you switch back.
     </p>
 }
 

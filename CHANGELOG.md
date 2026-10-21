@@ -9,6 +9,13 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.8.0
+- **Linux support.** On Linux the app runs `docker`/`podman` directly on the host; on Windows it still uses WSL2. The OS is detected automatically (`EngineHost`), nothing to configure.
+- Setup page: native prerequisite checks on Linux (engine CLI, daemon access incl. `docker` group hint, rootless Podman hint, Compose); the WSL distro selector, keep-alive session and WSL wording are hidden/changed on Linux.
+- Secrets still go through the process environment; `WSLENV` forwarding is Windows only.
+- Verified by running a linux-x64 publish inside WSL against a real Docker engine. Tests added for `EngineHost`.
+- Linux caveats: SQL Server images are x64 only; the self-contained publish needs `libicu`.
+
 ## 1.7.1
 - AI helper files refreshed for DevDb Studio (shared lifecycle, compose preview, env-based secrets, legacy-name invariants).
 - Added Copilot skills in `.github/skills/`: `add-dbms`, `add-page`, `verify`, `release`, `run-and-smoke-test`.

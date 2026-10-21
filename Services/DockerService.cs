@@ -112,7 +112,7 @@ public sealed partial class DockerService : IDockerService
     {
         var exe = await _engine.GetExecutableAsync(ct);
         var distro = await _engine.GetDistroAsync(ct);
-        return await ProcessRunner.RunAsync("wsl.exe", ["-d", distro, "--exec", exe, .. args],
+        return await EngineHost.RunAsync(distro, exe, args,
             timeout ?? TimeSpan.FromSeconds(Math.Max(_opt.CommandTimeoutSeconds, 15)), ct);
     }
 
@@ -145,7 +145,7 @@ public sealed partial class DockerService : IDockerService
             var info = await Docker(ct, null, "info", "--format", "json");
             // After `wsl --shutdown` the first call boots the VM and can exceed the normal timeout.
             if (info.TimedOut)
-                info = await ProcessRunner.RunAsync("wsl.exe", ["-d", await _engine.GetDistroAsync(ct), "--exec", await _engine.GetExecutableAsync(ct), "info", "--format", "json"],
+                info = await EngineHost.RunAsync(await _engine.GetDistroAsync(ct), await _engine.GetExecutableAsync(ct), ["info", "--format", "json"],
                     TimeSpan.FromSeconds(_opt.ColdStartTimeoutSeconds), ct);
             if (info.ExitCode != 0)
             {

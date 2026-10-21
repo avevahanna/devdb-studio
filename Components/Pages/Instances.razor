@@ -8,7 +8,7 @@
 <div class="page-header">
     <div>
         <h1>Instances</h1>
-        <p>Database servers running as containers in WSL.</p>
+        <p>Database servers running as containers@(EngineHost.UsesWsl ? " in WSL" : "").</p>
     </div>
     <div class="toolbar">
         <button class="btn btn-sm" @onclick="RefreshAsync" disabled="@(_loading || _busy)">
@@ -56,7 +56,7 @@ else if (_instances.Count == 0)
                 <span class="step__n">@(_dockerError is null ? "✓" : "1")</span>
                 <div class="step__body">
                     <strong>Check prerequisites</strong>
-                    <span class="muted">WSL2, a Linux distro and Docker or Podman.@(_dockerError is null ? " The container engine is reachable." : " The container engine is not reachable yet.")</span>
+                    <span class="muted">@(EngineHost.UsesWsl ? "WSL2, a Linux distro and Docker or Podman." : "Docker or Podman.")@(_dockerError is null ? " The container engine is reachable." : " The container engine is not reachable yet.")</span>
                 </div>
                 <a class="btn btn-sm @(_dockerError is null ? "" : "btn-primary")" href="/setup">Open setup</a>
             </li>

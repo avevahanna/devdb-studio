@@ -1,7 +1,7 @@
 # AI.md – project context
 
 ## Overview
-DevDb Studio is a local web app (Blazor Server, .NET 10, default <http://localhost:5190>) for creating and managing development database servers without Docker Desktop. Each "instance" is a Docker or Podman container running inside a WSL2 Linux distro; the app calls `wsl.exe -d <distro> --exec <docker|podman> …` and never talks to a daemon API directly.
+DevDb Studio is a local web app (Blazor Server, .NET 10, default <http://localhost:5190>) for creating and managing development database servers without Docker Desktop. Each "instance" is a Docker or Podman container, on Windows inside a WSL2 Linux distro (the app calls `wsl.exe -d <distro> --exec <docker|podman> …`) and on Linux directly on the host (`<docker|podman> …`). `Services/EngineHost.cs` picks the right form; the app never talks to a daemon API.
 
 On top of instance lifecycle it offers a Query page (run SQL or mongosh in the container), a table designer and random-data tool for the SQL databases, a Status page (containers, images, volumes, networks, host metrics, database insights) and a Setup page that checks prerequisites. The WSL distro and the container engine are auto-detected.
 
@@ -28,7 +28,7 @@ On top of instance lifecycle it offers a Query page (run SQL or mongosh in the c
 ## Invariants – must never break
 1. Containers publish ports on `127.0.0.1` only (`-p 127.0.0.1:<port>:<internal>`).
 2. The app serves loopback clients only unless `Security:AllowRemoteAccess` is true; the Origin check stays.
-3. Engine commands go through `IWslDockerRunner`/`ProcessRunner` with discrete arguments; never build a shell command from unvalidated input.
+3. Engine commands (and the host-metrics shell script) go through `EngineHost`/`IWslDockerRunner`/`ProcessRunner` with discrete arguments; never start `wsl.exe` or `docker` directly and never build a shell command from unvalidated input. The code must work on Windows (WSL) and Linux (native).
 4. Secrets travel as environment variables, scripts via stdin; never as command-line arguments that are logged.
 5. Container names `dbapp-<key>-<shortId>`, volume `<container>-data` and labels `dbapp.managed/id/dbms` stay stable.
 6. `instances.json` and `settings.json` stay backward compatible (optional new fields only).

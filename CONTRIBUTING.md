@@ -1,7 +1,7 @@
 # Contributing
 
 ## Dev environment
-1. Windows 10/11 with WSL2 and any Linux distro containing Docker Engine or Podman (`wsl --install`, then install the engine inside the distro). The app's Setup page checks this and shows fixes.
+1. Windows 10/11 with WSL2 and any Linux distro containing Docker Engine or Podman (`wsl --install`, then install the engine inside the distro), **or** a Linux machine with Docker Engine or Podman installed. The app's Setup page checks this and shows fixes.
 2. .NET 10 SDK (`dotnet --version` must print 10.x).
 3. Clone and run from the repo root:
    ```powershell

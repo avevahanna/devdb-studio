@@ -104,10 +104,11 @@ public sealed class ContainerEngine : IContainerEngine
     }
 
     public async Task<string> GetDistroAsync(CancellationToken ct = default) =>
-        ContainerEngines.IsAuto(_distroChoice) ? (await EnsureDetectedAsync(ct)).Distro : _distroChoice;
+        !EngineHost.UsesWsl ? "" : ContainerEngines.IsAuto(_distroChoice) ? (await EnsureDetectedAsync(ct)).Distro : _distroChoice;
 
     public async Task<IReadOnlyList<string>> ListDistrosAsync(CancellationToken ct = default)
     {
+        if (!EngineHost.UsesWsl) return [];
         var r = await ProcessRunner.RunAsync("wsl.exe", ["-l", "-q"], TimeSpan.FromSeconds(Math.Max(_opt.CommandTimeoutSeconds, 10)), ct);
         return r.ExitCode == 0 ? ContainerEngines.ParseDistros(r.StdOut) : [];
     }
@@ -125,7 +126,7 @@ public sealed class ContainerEngine : IContainerEngine
             // A choice made while probing makes this result stale; use it for this call only.
             if (generation == Volatile.Read(ref _generation))
                 _detected = new Detection(distro, exe, healthy, DateTime.UtcNow);
-            _log.LogInformation("Detected WSL distro {Distro} with {Engine} (healthy: {Healthy})", distro, exe, healthy);
+            _log.LogInformation("Detected {Engine} (healthy: {Healthy}) on {Host}", exe, healthy, EngineHost.UsesWsl ? $"WSL distro {distro}" : "the local host");
             return (distro, exe);
         }
         finally { _detectLock.Release(); }
@@ -188,7 +189,7 @@ public sealed class ContainerEngine : IContainerEngine
     // Prefer a distro/engine pair that actually answers, then one that is merely installed.
     private async Task<(string Distro, string Exe, bool Healthy)> DetectAsync(CancellationToken ct)
     {
-        var distros = ContainerEngines.IsAuto(_distroChoice) ? await ListDistrosAsync(ct) : [_distroChoice];
+        var distros = !EngineHost.UsesWsl ? [""] : ContainerEngines.IsAuto(_distroChoice) ? await ListDistrosAsync(ct) : [_distroChoice];
         var fallbackDistro = distros.FirstOrDefault() ?? "Ubuntu";
         var engines = _choice switch { EngineChoice.Docker => new[] { "docker" }, EngineChoice.Podman => ["podman"], _ => ["docker", "podman"] };
         var timeout = TimeSpan.FromSeconds(Math.Max(_opt.ColdStartTimeoutSeconds, 15));
@@ -197,7 +198,7 @@ public sealed class ContainerEngine : IContainerEngine
             foreach (var exe in engines)
                 foreach (var distro in distros)
                 {
-                    var r = await ProcessRunner.RunAsync("wsl.exe", ["-d", distro, "--exec", exe, arg], timeout, ct);
+                    var r = await EngineHost.RunAsync(distro, exe, [arg], timeout, ct);
                     if (r.ExitCode == 0) return (distro, exe, healthy);
                 }
         return (fallbackDistro, engines[0], false);

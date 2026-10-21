@@ -12,7 +12,7 @@
     <div>
         <h1>Container status</h1>
         <p>
-            Live statistics from the container engine in WSL.
+            Live statistics from the container engine@(EngineHost.UsesWsl ? " in WSL" : "").
             @if (_snap is not null)
             {
                 <span>Updated @_snap.Timestamp.ToString("HH:mm:ss") · fetched in @_snap.Elapsed.TotalSeconds.ToString("0.0")s</span>
@@ -435,7 +435,7 @@ else
     <div class="grid-2">
         <div class="card panel">
             <div class="panel__head">
-                <span>WSL host resources</span>
+                <span>@(EngineHost.UsesWsl ? "WSL host resources" : "Host resources")</span>
                 @if (_snap.Metrics is { } hm) { <strong>load @hm.Load1.ToString("0.00", CultureInfo.InvariantCulture)</strong> }
             </div>
             @if (_snap.Metrics is { } m)

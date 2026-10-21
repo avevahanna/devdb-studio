@@ -1,8 +1,8 @@
 # DevDb Studio
 
-A local web app for creating and managing database servers that run as **Docker or Podman** containers inside a **WSL2 Linux distro** (auto-detected, Ubuntu not required) — no Docker Desktop required.
+A local web app for creating and managing database servers that run as **Docker or Podman** containers — on **Windows** inside a **WSL2 Linux distro** (auto-detected, Ubuntu not required), or directly on **Linux**. No Docker Desktop required.
 
-Built with .NET 10 Blazor Server (interactive server rendering), running on Windows.
+Built with .NET 10 Blazor Server (interactive server rendering), running on Windows or Linux. The OS is detected automatically.
 
 ## Features
 
@@ -37,9 +37,10 @@ New DBMS support is added by implementing `IDbmsProvider` (`Services/Dbms`) and 
 
 ## Prerequisites
 
-- Windows with WSL2 and any Linux distro (Ubuntu, Debian, Fedora, a Podman machine, …); it is detected automatically
-- Docker Engine + Compose plugin, **or** Podman, installed **inside** that distro
-- .NET 10 SDK
+- **Windows:** WSL2 and any Linux distro (Ubuntu, Debian, Fedora, a Podman machine, …); it is detected automatically
+- **Linux:** nothing besides the engine; the app talks to `docker` or `podman` on the host directly. Your user must be allowed to use it (`docker` group, or rootless Podman). No WSL distro, no keep-alive.
+- Docker Engine + Compose plugin, **or** Podman, installed **inside** that distro (Windows) or on the host (Linux)
+- .NET 10 SDK (or the self-contained publish: `dotnet publish -c Release -r linux-x64 --self-contained`; needs `libicu` on the host)
 
 The Setup page verifies these and explains how to fix anything missing.
 
