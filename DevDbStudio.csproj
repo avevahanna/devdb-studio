@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <!-- Single source of truth for the app version (SemVer: MAJOR.MINOR.PATCH). Bump on every change; see CHANGELOG.md. -->
-    <Version>1.7.0</Version>
+    <Version>1.7.1</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- The test project lives in a subfolder and must not be compiled into the app. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);tests\**</DefaultItemExcludes>

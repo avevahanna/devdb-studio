@@ -9,6 +9,10 @@ On top of instance lifecycle it offers a Query page (run SQL or mongosh in the c
 | Module | Path | Purpose |
 |--------|------|---------|
 | Providers | `Services/Dbms/*Provider.cs` | Create/start/stop/delete a DBMS container and run queries (`IDbmsProvider`) |
+| Lifecycle (shared) | `Services/Dbms/ContainerLifecycle.cs` | Start/stop/delete/cleanup code every provider delegates to; no copy-paste per provider |
+| Compose preview | `Services/Dbms/ComposePreview.cs` | Render/parse/check compose YAML for the create page (built from `IDbmsProvider.BuildRunArgs`) |
+| Connection strings | `Services/Dbms/ConnectionStrings.cs` | `Value()` quotes passwords containing `;`, `"`, `'`, `=` |
+| Secrets in env | `Services/ContainerEnvironment.cs` | Passes secrets to `wsl.exe` through the environment/`WSLENV`, not argv |
 | Instance manager | `Services/Dbms/InstanceManager.cs` | Orchestrates providers, repository and engine status |
 | Repository | `Services/Dbms/InstanceRepository.cs` | JSON file store of instances (atomic save with retry) |
 | Validation/models | `Services/Dbms/Models.cs` | `DbInstance`, requests/results, `InstanceValidation` |
@@ -33,6 +37,9 @@ On top of instance lifecycle it offers a Query page (run SQL or mongosh in the c
 9. The app never touches containers it did not create unless the user acts on them in the Status page.
 10. `<Version>` in `DevDbStudio.csproj` is the single source of the version; `CHANGELOG.md` is updated with every change.
 11. Tests must run without WSL, Docker or network.
+12. The app is named DevDb Studio, but the on-disk folder `%LocalAppData%\DbServeApp`, `dbapp.*` names/labels and `dbserve-*` browser storage keys keep their legacy names on purpose. Do not "fix" them.
+13. `docker run` arguments come only from `IDbmsProvider.BuildRunArgs`; `CreateAsync` and the compose preview must both use it so they never diverge.
+14. Providers share lifecycle code via `ContainerLifecycle`; fix lifecycle bugs there, not per provider.
 
 ## Common workflows
 **Add a page:** create `Components/Pages/<Name>.razor` with `@page "/<route>"`, inject interfaces, use a `CancellationTokenSource` disposed in `Dispose`; add a `NavLink` in `Components/Layout/MainLayout.razor`; reuse CSS classes from `wwwroot/app.css`.
@@ -40,5 +47,7 @@ On top of instance lifecycle it offers a Query page (run SQL or mongosh in the c
 **Add a service ("endpoint"):** there are no HTTP API endpoints; features are services called from Razor pages. Define `I<Name>` + implementation in `Services/` (or `Services/Dbms/`), register in `Program.cs`, return result objects, add tests.
 
 **Add a DBMS:** follow the checklist in `.github/copilot-instructions.md` ("Adding a DBMS"); `MongoDbProvider.cs` is the compact example, `MySqlFamilyProvider.cs` the SQL one.
+
+**Skills:** task-specific playbooks live in `.github/skills/<name>/SKILL.md` (`add-dbms`, `add-page`, `release`, `verify`, `run-and-smoke-test`). Prefer them for those tasks.
 
 **Add a feature:** use `prompts/feature.md`; finish with tests, `CHANGELOG.md`, version bump and README.

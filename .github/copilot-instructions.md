@@ -16,6 +16,7 @@ DevDb Studio is a .NET Blazor Server app that creates and manages database serve
 - `Components/Pages/` – routable pages (`@page`). `Components/Shared/` – reusable components. `Components/Layout/` – layout and navigation.
 - `wwwroot/` – static assets; DBMS icons in `wwwroot/icons/`.
 - `tests/DevDbStudio.Tests/` – one test file per unit under test (`<Thing>Tests.cs`).
+- `.github/skills/<name>/SKILL.md` – reusable task playbooks (`add-dbms`, `add-page`, `release`, `verify`, `run-and-smoke-test`). Use them when the task matches.
 - Docs: `README.md` (users), `CHANGELOG.md` (every version), `AI.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `prompts/`.
 
 ## Coding conventions
@@ -26,7 +27,8 @@ DevDb Studio is a .NET Blazor Server app that creates and manages database serve
 - Logging: `ILogger<T>` with message templates (`log.LogInformation("Created {Dbms} instance {Name}", …)`), never string interpolation. Never log passwords or connection strings with passwords.
 - Errors: expected failures are returned as result objects (`InstanceCreateResult`, `InstanceActionResult`, `QueryResult`), not thrown. Catch only specific exceptions; let `OperationCanceledException` propagate. User-facing messages must say what to do next.
 - Nullability: no `!` unless a prior check guarantees non-null; prefer `is { } x` patterns. Models are `record`s; update with `with`.
-- Adding a DBMS: implement `IDbmsProvider` (copy `MongoDbProvider` or `MySqlFamilyProvider`), register it in `Program.cs`, add the icon and `DbmsBadge.razor` mapping, and handle it in `TableDialect`, `TableDataService`, `DbInsightService` and `Query.razor` as applicable. Use `SupportsTables`/`QueryLanguage` for non-SQL providers.
+- Providers build the container command in `BuildRunArgs` (also used by `ComposePreview`) and delegate start/stop/delete/cleanup to `ContainerLifecycle`; do not duplicate lifecycle code. Quote passwords in connection strings with `ConnectionStrings.Value()`. Secrets go through `ContainerEnvironment`.
+- Adding a DBMS (see the `add-dbms` skill): implement `IDbmsProvider` (copy `MongoDbProvider` or `MySqlFamilyProvider`), register it in `Program.cs`, add the icon and `DbmsBadge.razor` mapping, and handle it in `TableDialect`, `TableDataService`, `DbInsightService` and `Query.razor` as applicable. Use `SupportsTables`/`QueryLanguage` for non-SQL providers.
 - Run container engine commands only through `IWslDockerRunner` (arguments are discrete tokens, no shell). Pass secrets via `-e` env vars and scripts via stdin, as the existing providers do.
 - Razor: `v@Name` is parsed as an e-mail address; write `v@(Name)`.
 - UI follows the AVEVA look (CSS variables in `wwwroot/app.css`, light/dark themes). Reuse existing classes (`card`, `btn`, `chip`, `form`, `toolbar`) before adding new CSS.
@@ -39,6 +41,7 @@ DevDb Studio is a .NET Blazor Server app that creates and manages database serve
 
 ## Data / migrations
 - There is no SQL schema or migration system. `instances.json` (`Storage:InstancesFile`, default `%LOCALAPPDATA%\DbServeApp\instances.json`) and `settings.json` must stay backward compatible: only add optional fields with defaults, never rename or remove existing ones.
+- The product was renamed from "DB Serve" to "DevDb Studio" in 1.7.0. The data folder `DbServeApp`, the `dbapp-*` names/labels and `dbserve-*` localStorage keys intentionally keep the old names so existing installs keep working.
 - Container and volume names (`dbapp-<key>-<shortId>`, `…-data`) and labels (`dbapp.managed`, `dbapp.id`, `dbapp.dbms`) are relied upon by existing installs; do not change them.
 
 ## Security rules

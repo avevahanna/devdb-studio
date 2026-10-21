@@ -9,6 +9,10 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.7.1
+- AI helper files refreshed for DevDb Studio (shared lifecycle, compose preview, env-based secrets, legacy-name invariants).
+- Added Copilot skills in `.github/skills/`: `add-dbms`, `add-page`, `verify`, `release`, `run-and-smoke-test`.
+
 ## 1.7.0
 - Renamed the application from "DB Serve" to **DevDb Studio**: project (`DevDbStudio.csproj`), namespaces, tests (`tests/DevDbStudio.Tests`), JS namespace (`window.devDbStudio`), UI and docs.
 - Intentionally unchanged for backward compatibility: data folder `%LocalAppData%\DbServeApp`, `dbapp-*` container names and `dbapp.*` labels, and `dbserve-*` browser storage keys.
