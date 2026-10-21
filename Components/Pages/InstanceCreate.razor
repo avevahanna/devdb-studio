@@ -34,7 +34,7 @@ else if (_result is not null)
 }
 
 <div class="card">
-    <div class="card__body form">
+    <div class="card__body form form--narrow">
         <label class="field">DBMS
             <select value="@_dbms" @onchange="OnDbmsChanged" disabled="@_busy">
                 @foreach (var p in Manager.Providers)

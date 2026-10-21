@@ -17,6 +17,7 @@ Built with .NET 10 Blazor Server (interactive server rendering), running on Wind
   - Inserts run in a single transaction, so a failure leaves the table unchanged. `CHECK` constraints are not known to the generator and can still cause a failure.
   - Clearing uses `TRUNCATE`, or `DELETE` plus an identity/sequence reset when other tables reference the table (it fails if rows there still point at the table).
 - **Status** (`/status`) – live container engine statistics (CPU/memory, containers, images, volumes, networks, disk usage) with auto-refresh, plus container administration (start, stop, restart, pause, kill, remove, logs, inspect).
+- **Light/dark theme** – toggle in the top bar; defaults to your OS preference and remembers your choice. DBMS icons are served from `wwwroot/icons`.
 
 ### Supported DBMS
 

@@ -27,8 +27,8 @@
                 <option value="30">30 s</option>
             </select>
         </label>
-        <button class="btn btn-primary" @onclick="() => RefreshAsync(true)" disabled="@_loading">
-            @if (_loading) { <span class="spinner"></span> }
+        <button class="btn btn-primary" @onclick="ManualRefreshAsync" disabled="@_manual">
+            @if (_manual) { <span class="spinner"></span> }
             Refresh now
         </button>
     </div>
@@ -305,6 +305,13 @@ else
 
     private DockerSnapshot? _snap;
     private bool _loading, _busy, _logWrap, _inspect;
+    private bool _manual; // true only while a refresh started by the button is running
+
+    private async Task ManualRefreshAsync()
+    {
+        _manual = true;
+        await RefreshAsync(true);
+    }
     private int _intervalSeconds = 5;
     private string _filter = "all", _search = "", _tab = "images";
     private string? _confirm, _selected, _logText, _toast;
@@ -380,6 +387,7 @@ else
         finally
         {
             _loading = false;
+            _manual = false;
             if (!_disposed) StateHasChanged();
         }
 

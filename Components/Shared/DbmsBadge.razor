@@ -1,7 +1,9 @@
 @using DbServeApp.Services.Dbms
 
 <span class="dbms dbms--@Key.ToLowerInvariant()" title="@Label">
-    <span class="dbms__logo">@Abbrev</span>
+    <span class="dbms__logo">
+        @if (IconFile is not null) { <img src="icons/@IconFile" alt="" /> } else { @Abbrev }
+    </span>
     <span class="dbms__text">
         <span class="dbms__name">@Label</span>
         @if (!string.IsNullOrEmpty(Tag)) { <span class="dbms__tag">@Tag</span> }
@@ -20,6 +22,15 @@
         "mariadb" => "MariaDB",
         "mysql" => "MySQL",
         _ => Key,
+    };
+
+    private string? IconFile => Key.ToLowerInvariant() switch
+    {
+        "mssql" => "mssql.png",
+        "postgres" => "postgresql.png",
+        "mariadb" => "mariadb.png",
+        "mysql" => "mysql.png",
+        _ => null,
     };
 
     private string Abbrev => Key.ToLowerInvariant() switch

@@ -1,22 +1,75 @@
 ﻿@inherits LayoutComponentBase
 
-<header class="app-bar">
-    <span class="app-bar__logo">DB</span>
-    <span class="app-bar__title">DB Serve</span>
-    <span class="app-bar__sub">Database servers on WSL containers</span>
-    <nav class="app-bar__nav">
-        <NavLink href="instances">Instances</NavLink>
-        <NavLink href="query">Query</NavLink>
-        <NavLink href="tables" Match="NavLinkMatch.All">Tables</NavLink>
-        <NavLink href="data">Table data</NavLink>
-        <NavLink href="setup">Setup</NavLink>
-        <NavLink href="status">Status</NavLink>
-    </nav>
-</header>
+<div class="shell">
+    <aside class="sidebar">
+        <a class="brand" href="/">
+            <span class="brand__logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" /><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+                </svg>
+            </span>
+            <span class="brand__text">
+                <span class="brand__title">DB Serve</span>
+                <span class="brand__sub">Database servers on WSL</span>
+            </span>
+        </a>
 
-<main class="app-content">
-    @Body
-</main>
+        <div class="sidebar__section">Manage</div>
+        <nav class="sidebar__nav">
+            <NavLink href="instances">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="8" rx="2" /><rect x="2" y="13" width="20" height="8" rx="2" /><path d="M6 7h.01M6 17h.01" /></svg>
+                <span>Instances</span>
+            </NavLink>
+            <NavLink href="query">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
+                <span>Query</span>
+            </NavLink>
+            <NavLink href="tables" Match="NavLinkMatch.All">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
+                <span>Tables</span>
+            </NavLink>
+            <NavLink href="data">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" /><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" /></svg>
+                <span>Table data</span>
+            </NavLink>
+        </nav>
+
+        <div class="sidebar__section">System</div>
+        <nav class="sidebar__nav">
+            <NavLink href="setup">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></svg>
+                <span>Setup</span>
+            </NavLink>
+            <NavLink href="status">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+                <span>Status</span>
+            </NavLink>
+        </nav>
+        <div class="sidebar__foot">
+            <strong>Mattias Dahlgren</strong>
+            <a href="mailto:mattias.dahlgren@aveva.com">mattias.dahlgren@aveva.com</a>
+            <span>Docker &amp; Podman · WSL2</span>
+        </div>
+    </aside>
+
+    <div class="shell__main">
+        <header class="topbar">
+            <button type="button" class="icon-btn menu-btn" onclick="dbServe.toggleSidebar()" aria-label="Toggle menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+            </button>
+            <span class="topbar__title">Database servers on WSL containers</span>
+            <span class="topbar__spacer"></span>
+            <button type="button" class="icon-btn" onclick="dbServe.toggleTheme()" title="Switch light/dark theme" aria-label="Switch light/dark theme">
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>
+            </button>
+        </header>
+
+        <main class="app-content" onclick="document.body.classList.remove('sidebar-open')">
+            @Body
+        </main>
+    </div>
+</div>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

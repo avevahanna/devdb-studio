@@ -1,4 +1,11 @@
 window.dbServe = {
+    toggleSidebar: () => document.body.classList.toggle('sidebar-open'),
+    toggleTheme: () => {
+        const root = document.documentElement;
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('dbserve-theme', next); } catch { }
+    },
     copyText: async (text) => {
         try {
             if (navigator.clipboard && window.isSecureContext) {
