@@ -4,7 +4,7 @@
  Browser (localhost:5190)
      │  Blazor Server circuit (SignalR)
      ▼
-┌──────────────────────────── DbServeApp (Windows, .NET 10) ───────────────────────────┐
+┌──────────────────────────── DevDbStudio (Windows, .NET 10) ──────────────────────────┐
 │ Components/Pages ──► Components/Shared                                                │
 │   Instances, InstanceCreate, Query, TableDesigner, TableData, Status, Setup           │
 │        │                                                                              │

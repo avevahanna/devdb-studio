@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>Redis (key-value store). Commands are sent to redis-cli inside the container, one per line.</summary>
 public sealed class RedisProvider(IWslDockerRunner docker, ILogger<RedisProvider> log) : IDbmsProvider

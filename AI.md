@@ -1,7 +1,7 @@
 # AI.md – project context
 
 ## Overview
-DB Serve is a local web app (Blazor Server, .NET 10, default <http://localhost:5190>) for creating and managing development database servers without Docker Desktop. Each "instance" is a Docker or Podman container running inside a WSL2 Linux distro; the app calls `wsl.exe -d <distro> --exec <docker|podman> …` and never talks to a daemon API directly.
+DevDb Studio is a local web app (Blazor Server, .NET 10, default <http://localhost:5190>) for creating and managing development database servers without Docker Desktop. Each "instance" is a Docker or Podman container running inside a WSL2 Linux distro; the app calls `wsl.exe -d <distro> --exec <docker|podman> …` and never talks to a daemon API directly.
 
 On top of instance lifecycle it offers a Query page (run SQL or mongosh in the container), a table designer and random-data tool for the SQL databases, a Status page (containers, images, volumes, networks, host metrics, database insights) and a Setup page that checks prerequisites. The WSL distro and the container engine are auto-detected.
 
@@ -19,7 +19,7 @@ On top of instance lifecycle it offers a Query page (run SQL or mongosh in the c
 | Docker service | `Services/DockerService.cs`, `DockerService.Details.cs` | Cached snapshot for the Status page |
 | Prerequisites | `Services/PrerequisiteCheckService.cs` | Setup page checks and fix instructions |
 | UI | `Components/Pages`, `Components/Shared`, `Components/Layout`, `wwwroot` | Pages, shared components, AVEVA-styled CSS/JS |
-| Tests | `tests/DbServeApp.Tests` | xUnit, no WSL required |
+| Tests | `tests/DevDbStudio.Tests` | xUnit, no WSL required |
 
 ## Invariants – must never break
 1. Containers publish ports on `127.0.0.1` only (`-p 127.0.0.1:<port>:<internal>`).
@@ -31,7 +31,7 @@ On top of instance lifecycle it offers a Query page (run SQL or mongosh in the c
 7. Instance data is only deleted when the user explicitly ticks "delete volume".
 8. Create failures clean up the container and volume they started.
 9. The app never touches containers it did not create unless the user acts on them in the Status page.
-10. `<Version>` in `DbServeApp.csproj` is the single source of the version; `CHANGELOG.md` is updated with every change.
+10. `<Version>` in `DevDbStudio.csproj` is the single source of the version; `CHANGELOG.md` is updated with every change.
 11. Tests must run without WSL, Docker or network.
 
 ## Common workflows

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 public enum CheckStatus { Unknown, Pass, Fail }
 

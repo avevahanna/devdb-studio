@@ -1,6 +1,6 @@
-using DbServeApp.Services;
+using DevDbStudio.Services;
 
-namespace DbServeApp.Tests;
+namespace DevDbStudio.Tests;
 
 public class DistroParsingTests
 {

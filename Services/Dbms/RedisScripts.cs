@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>redis-cli commands and parsing of INFO output.</summary>
 public static partial class RedisScripts

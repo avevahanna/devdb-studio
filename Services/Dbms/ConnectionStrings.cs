@@ -1,4 +1,4 @@
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public static class ConnectionStrings
 {

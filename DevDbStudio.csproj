@@ -6,14 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <!-- Single source of truth for the app version (SemVer: MAJOR.MINOR.PATCH). Bump on every change; see CHANGELOG.md. -->
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- The test project lives in a subfolder and must not be compiled into the app. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="DbServeApp.Tests" />
+    <InternalsVisibleTo Include="DevDbStudio.Tests" />
   </ItemGroup>
 
 </Project>

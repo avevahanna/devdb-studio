@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public enum PreviewSeverity { Error, Warning, Info }
 
@@ -12,7 +12,7 @@ public sealed record PreviewIssue(PreviewSeverity Severity, string Message);
 public sealed record ComposeEdit(int? HostPort, string? Tag, string? Password, string? Database, IReadOnlyList<string> Ignored);
 
 /// <summary>
-/// Shows the container DB Serve is about to create as a docker-compose file, and reads edits back into the form.
+/// Shows the container DevDb Studio is about to create as a docker-compose file, and reads edits back into the form.
 /// The text is rendered from the provider's real <c>docker run</c> arguments, so it cannot drift from what is executed.
 /// </summary>
 public static class ComposePreview
@@ -49,7 +49,7 @@ public static class ComposePreview
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("# Preview of the container DB Serve creates (it runs `docker run`; this is the same thing as compose).");
+        sb.AppendLine("# Preview of the container DevDb Studio creates (it runs `docker run`; this is the same thing as compose).");
         sb.AppendLine("services:");
         sb.AppendLine($"  {p.Key}:");
         sb.AppendLine($"    image: {Q(image ?? "")}");
@@ -129,7 +129,7 @@ public static class ComposePreview
 
         var others = existing.ToList();
         if (others.Any(i => i.HostPort == req.HostPort))
-            issues.Add(new(PreviewSeverity.Error, $"Host port {req.HostPort} is already used by another DB Serve instance."));
+            issues.Add(new(PreviewSeverity.Error, $"Host port {req.HostPort} is already used by another DevDb Studio instance."));
         var name = req.Name?.Trim() ?? "";
         if (name.Length > 0 && others.Any(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase)))
             issues.Add(new(PreviewSeverity.Error, $"An instance named '{name}' already exists."));
@@ -146,9 +146,9 @@ public static class ComposePreview
             {
                 var parts = binding.Split(':');
                 if (parts.Length == 3 && parts[0] != "127.0.0.1")
-                    issues.Add(new(PreviewSeverity.Warning, $"Port binding '{binding}' would expose the database beyond this machine. DB Serve always binds to 127.0.0.1, so this part is not used."));
+                    issues.Add(new(PreviewSeverity.Warning, $"Port binding '{binding}' would expose the database beyond this machine. DevDb Studio always binds to 127.0.0.1, so this part is not used."));
                 else if (parts.Length == 2)
-                    issues.Add(new(PreviewSeverity.Warning, $"Port binding '{binding}' has no host address (would listen on all interfaces). DB Serve always binds to 127.0.0.1, so this is not used."));
+                    issues.Add(new(PreviewSeverity.Warning, $"Port binding '{binding}' has no host address (would listen on all interfaces). DevDb Studio always binds to 127.0.0.1, so this is not used."));
             }
         }
 

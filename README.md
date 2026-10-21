@@ -1,4 +1,4 @@
-# DB Serve
+# DevDb Studio
 
 A local web app for creating and managing database servers that run as **Docker or Podman** containers inside a **WSL2 Linux distro** (auto-detected, Ubuntu not required) — no Docker Desktop required.
 
@@ -54,7 +54,7 @@ Then open <http://localhost:5190>.
 ## Tests
 
 ```powershell
-dotnet test tests\DbServeApp.Tests
+dotnet test tests\DevDbStudio.Tests
 ```
 
 The xUnit suite covers the pure logic (input validation, SQL generation and validation per DBMS, result-output parsing, container engine JSON parsing for Docker and Podman, the instance JSON store and the database insight queries). It needs neither WSL nor a running container engine. Add tests alongside every change.
@@ -93,7 +93,7 @@ Authentication, multi-user support, automatic installation of WSL/Docker, and ad
 
 ## Versioning
 
-Semantic versioning (`MAJOR.MINOR.PATCH`). The version is set in `<Version>` in `DbServeApp.csproj`, shown in the sidebar footer, and each change is logged in [CHANGELOG.md](CHANGELOG.md).
+Semantic versioning (`MAJOR.MINOR.PATCH`). The version is set in `<Version>` in `DevDbStudio.csproj`, shown in the sidebar footer, and each change is logged in [CHANGELOG.md](CHANGELOG.md).
 
 ## Author
 

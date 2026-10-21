@@ -1,4 +1,4 @@
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed class MariaDbProvider(IWslDockerRunner docker, ILogger<MariaDbProvider> log) : MySqlFamilyProvider(docker, log)
 {

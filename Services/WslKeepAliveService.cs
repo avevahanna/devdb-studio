@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 public sealed class WslKeepAliveService(IOptions<WslOptions> options, IContainerEngine engine, ILogger<WslKeepAliveService> log) : BackgroundService
 {

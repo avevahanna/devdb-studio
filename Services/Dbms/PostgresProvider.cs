@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed class PostgresProvider(IWslDockerRunner docker, ILogger<PostgresProvider> log) : PostgresFamilyProvider(docker, log)
 {

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>
 /// Rewrites the <c>mariadb --table</c> / <c>mysql --table</c> box output into the tab-separated layout that

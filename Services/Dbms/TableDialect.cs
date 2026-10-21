@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>DBMS-specific rules and SQL generation for the table designer and table listing.</summary>
 public abstract class TableDialect

@@ -1,8 +1,8 @@
 using System.Text.Json;
-using DbServeApp.Services.Dbms;
+using DevDbStudio.Services.Dbms;
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 public enum EngineChoice { Auto, Docker, Podman }
 

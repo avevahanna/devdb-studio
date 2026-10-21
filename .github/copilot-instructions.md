@@ -1,13 +1,13 @@
-# Copilot instructions – DB Serve
+# Copilot instructions – DevDb Studio
 
-DB Serve is a .NET Blazor Server app that creates and manages database servers (SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB, Redis) as Docker or Podman containers inside a WSL2 Linux distro. Read `AI.md` and `ARCHITECTURE.md` before larger changes.
+DevDb Studio is a .NET Blazor Server app that creates and manages database servers (SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB, Redis) as Docker or Podman containers inside a WSL2 Linux distro. Read `AI.md` and `ARCHITECTURE.md` before larger changes.
 
 ## Tech stack
-- .NET 10 (`net10.0`), ASP.NET Core Blazor Server (interactive server components), C# with `Nullable` and `ImplicitUsings` enabled. Single project: `DbServeApp.csproj`.
+- .NET 10 (`net10.0`), ASP.NET Core Blazor Server (interactive server components), C# with `Nullable` and `ImplicitUsings` enabled. Single project: `DevDbStudio.csproj`.
 - No database or ORM of its own: instances are stored in a JSON file (`Services/Dbms/InstanceRepository.cs`); settings in `settings.json`.
 - All container/DB work is done by shelling out to `wsl.exe` (`Services/ProcessRunner.cs`).
-- Tests: xUnit 2.9 on `net10.0` in `tests/DbServeApp.Tests`. CI: `.github/workflows/ci.yml` (ubuntu-latest).
-- Frontend: plain CSS (`wwwroot/app.css`) and small JS helpers (`wwwroot/app.js`, namespace `dbServe`). No npm or build step.
+- Tests: xUnit 2.9 on `net10.0` in `tests/DevDbStudio.Tests`. CI: `.github/workflows/ci.yml` (ubuntu-latest).
+- Frontend: plain CSS (`wwwroot/app.css`) and small JS helpers (`wwwroot/app.js`, namespace `devDbStudio`). No npm or build step.
 
 ## Where code goes
 - `Program.cs` – DI registration and middleware only.
@@ -15,11 +15,11 @@ DB Serve is a .NET Blazor Server app that creates and manages database servers (
 - `Services/Dbms/` – everything DBMS related: one `<Name>Provider.cs` per DBMS implementing `IDbmsProvider`, script/parsing helpers (`*DataScript.cs`, `*OutputConverter.cs`, `SqlcmdOutputParser.cs`, `MongoScripts.cs`), `InstanceManager`, `TableDataService`, `DbInsightService`, `Models.cs`.
 - `Components/Pages/` – routable pages (`@page`). `Components/Shared/` – reusable components. `Components/Layout/` – layout and navigation.
 - `wwwroot/` – static assets; DBMS icons in `wwwroot/icons/`.
-- `tests/DbServeApp.Tests/` – one test file per unit under test (`<Thing>Tests.cs`).
+- `tests/DevDbStudio.Tests/` – one test file per unit under test (`<Thing>Tests.cs`).
 - Docs: `README.md` (users), `CHANGELOG.md` (every version), `AI.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `prompts/`.
 
 ## Coding conventions
-- Namespaces: `DbServeApp.Services`, `DbServeApp.Services.Dbms`. File-scoped namespaces. One public type per file, file named after the type.
+- Namespaces: `DevDbStudio.Services`, `DevDbStudio.Services.Dbms`. File-scoped namespaces. One public type per file, file named after the type.
 - Naming: `PascalCase` types/members, `_camelCase` private fields, `IName` for interfaces, `Async` suffix on async methods. Provider keys are lowercase constants (`MongoDbProvider.ProviderKey = "mongodb"`).
 - DI: constructor injection (primary constructors are used). Register in `Program.cs`; services are singletons unless they hold per-circuit state. Razor pages use `@inject`. Depend on interfaces (`IInstanceManager`, `IWslDockerRunner`, …), never on concrete providers.
 - Async: `async`/`await` end to end, accept and pass a `CancellationToken ct`, no `.Result`/`.Wait()`. Pages create a `CancellationTokenSource` and cancel it in `Dispose`.
@@ -32,10 +32,10 @@ DB Serve is a .NET Blazor Server app that creates and manages database servers (
 - UI follows the AVEVA look (CSS variables in `wwwroot/app.css`, light/dark themes). Reuse existing classes (`card`, `btn`, `chip`, `form`, `toolbar`) before adding new CSS.
 
 ## Testing rules
-- Framework: xUnit. Tests live in `tests/DbServeApp.Tests/` and must not need WSL, Docker or network. Fake `IWslDockerRunner` / `IInstanceManager` (see `MongoDbTests.cs`, `DbInsightServiceTests.cs`).
+- Framework: xUnit. Tests live in `tests/DevDbStudio.Tests/` and must not need WSL, Docker or network. Fake `IWslDockerRunner` / `IInstanceManager` (see `MongoDbTests.cs`, `DbInsightServiceTests.cs`).
 - Test pure logic: validation, SQL/script generation, output parsing, JSON parsing, providers via a fake runner. Parsers in `DockerService` are `internal` and exposed via `InternalsVisibleTo`.
 - Every behaviour change or bug fix gets a test. Name tests `Method_Condition_Expected` or a descriptive sentence.
-- Run: `dotnet test tests\DbServeApp.Tests`. If the app is running (it locks `bin\Debug`), add `-o "$env:TEMP\dbs-test-out"`.
+- Run: `dotnet test tests\DevDbStudio.Tests`. If the app is running (it locks `bin\Debug`), add `-o "$env:TEMP\dbs-test-out"`.
 
 ## Data / migrations
 - There is no SQL schema or migration system. `instances.json` (`Storage:InstancesFile`, default `%LOCALAPPDATA%\DbServeApp\instances.json`) and `settings.json` must stay backward compatible: only add optional fields with defaults, never rename or remove existing ones.
@@ -48,9 +48,9 @@ DB Serve is a .NET Blazor Server app that creates and manages database servers (
 - Passwords are stored in plain text in `instances.json` by design (local dev tool); never display them unmasked except through `ConnectionStringBox` reveal.
 
 ## Definition of Done
-- [ ] `dotnet build DbServeApp.csproj -warnaserror` succeeds with 0 warnings.
-- [ ] `dotnet test tests\DbServeApp.Tests` passes; new behaviour has tests.
-- [ ] Changed files are formatted: `dotnet format DbServeApp.csproj --include <changed files>` (the repo has older, unformatted files; do not reformat unrelated code).
-- [ ] `<Version>` in `DbServeApp.csproj` bumped (SemVer: fix = patch, feature = minor, breaking = major) and an entry added to `CHANGELOG.md`.
+- [ ] `dotnet build DevDbStudio.csproj -warnaserror` succeeds with 0 warnings.
+- [ ] `dotnet test tests\DevDbStudio.Tests` passes; new behaviour has tests.
+- [ ] Changed files are formatted: `dotnet format DevDbStudio.csproj --include <changed files>` (the repo has older, unformatted files; do not reformat unrelated code).
+- [ ] `<Version>` in `DevDbStudio.csproj` bumped (SemVer: fix = patch, feature = minor, breaking = major) and an entry added to `CHANGELOG.md`.
 - [ ] `README.md` updated if user-visible behaviour, configuration or prerequisites changed.
 - [ ] No secrets, no leftover debug code, no unrelated edits.

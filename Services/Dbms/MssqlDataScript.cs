@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed record ColumnInfo(
     string Name, string Type, int MaxLength, int Precision, int Scale,

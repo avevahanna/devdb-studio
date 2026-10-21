@@ -1,4 +1,4 @@
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>
 /// Container start/stop/delete/cleanup steps that are identical for every DBMS. Providers keep only what differs

@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 public sealed record ContainerInfo(
     string Id, string Name, string Image, string State, string Status, string Health,

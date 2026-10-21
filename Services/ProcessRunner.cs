@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 public sealed record ProcessResult(int ExitCode, string StdOut, string StdErr, bool TimedOut);
 

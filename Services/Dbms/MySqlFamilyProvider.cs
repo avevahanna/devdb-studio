@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>
 /// Shared container handling for the MySQL protocol family (MariaDB, and MySQL later). Subclasses only describe

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public enum PgKind { Int, Numeric, Float, Money, Bool, Text, Date, Timestamp, Time, Uuid, Json, Bytea, Inet, Enum, Unknown }
 

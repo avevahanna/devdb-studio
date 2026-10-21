@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed record ResultTable(IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string>> Rows, string? Footer);
 

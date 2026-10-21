@@ -29,7 +29,7 @@
     // Always copies the real password, even while it is masked on screen.
     private async Task CopyAsync()
     {
-        try { _state = await JS.InvokeAsync<bool>("dbServe.copyText", Build(false)) ? CopyState.Copied : CopyState.Failed; }
+        try { _state = await JS.InvokeAsync<bool>("devDbStudio.copyText", Build(false)) ? CopyState.Copied : CopyState.Failed; }
         catch { _state = CopyState.Failed; }
 
         _reset?.Cancel();

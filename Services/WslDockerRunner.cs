@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 /// <summary>Runs the container engine (docker or podman) inside the configured WSL distro. All engine access for DBMS management goes through this.</summary>
 public interface IWslDockerRunner

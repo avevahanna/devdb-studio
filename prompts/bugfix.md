@@ -7,8 +7,8 @@ Context: read `AI.md` and `.github/copilot-instructions.md` first.
 - Page/route and DBMS/engine/distro involved:
 - Steps to reproduce:
 - Expected vs actual:
-- Version (`<Version>` in `DbServeApp.csproj`, shown in the sidebar footer) and relevant log lines (never include passwords).
-Reproduce with the smallest possible case, preferably as a failing unit test in `tests/DbServeApp.Tests/` (fake `IWslDockerRunner` or feed captured output to the parser).
+- Version (`<Version>` in `DevDbStudio.csproj`, shown in the sidebar footer) and relevant log lines (never include passwords).
+Reproduce with the smallest possible case, preferably as a failing unit test in `tests/DevDbStudio.Tests/` (fake `IWslDockerRunner` or feed captured output to the parser).
 
 ## 2. Root cause
 State the cause in one or two sentences with file and line (for example "`Query.razor` prefixes `USE` for MongoDB"). Check whether the same defect exists in the other providers (`Services/Dbms/*Provider.cs`) or dialects (`TableDialect.cs`).
@@ -20,7 +20,7 @@ State the cause in one or two sentences with file and line (for example "`Query.
 
 ## 4. Test
 - The reproducing test now passes; add edge cases next to it.
-- `dotnet test tests\DbServeApp.Tests` and `dotnet build DbServeApp.csproj -warnaserror` pass.
+- `dotnet test tests\DevDbStudio.Tests` and `dotnet build DevDbStudio.csproj -warnaserror` pass.
 
 ## 5. Finish
-Patch version bump in `DbServeApp.csproj`, `CHANGELOG.md` entry ("Fixed: …"), README only if behaviour documented there changed. Summarise cause, fix and verification.
+Patch version bump in `DevDbStudio.csproj`, `CHANGELOG.md` entry ("Fixed: …"), README only if behaviour documented there changed. Summarise cause, fix and verification.

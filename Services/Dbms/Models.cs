@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public enum InstanceStatus { Unknown, Running, Stopped, NotFound }
 

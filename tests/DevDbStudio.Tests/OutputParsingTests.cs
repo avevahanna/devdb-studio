@@ -1,6 +1,6 @@
-using DbServeApp.Services.Dbms;
+using DevDbStudio.Services.Dbms;
 
-namespace DbServeApp.Tests;
+namespace DevDbStudio.Tests;
 
 public class SqlcmdOutputParserTests
 {

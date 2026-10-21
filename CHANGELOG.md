@@ -6,8 +6,12 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 - **MINOR** (1.1.0): new features, backwards compatible.
 - **MAJOR** (2.0.0): breaking changes (e.g. settings or data file format).
 
-The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
+The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
+
+## 1.7.0
+- Renamed the application from "DB Serve" to **DevDb Studio**: project (`DevDbStudio.csproj`), namespaces, tests (`tests/DevDbStudio.Tests`), JS namespace (`window.devDbStudio`), UI and docs.
+- Intentionally unchanged for backward compatibility: data folder `%LocalAppData%\DbServeApp`, `dbapp-*` container names and `dbapp.*` labels, and `dbserve-*` browser storage keys.
 
 ## 1.6.0
 
@@ -75,7 +79,7 @@ Fixes from a code review.
 
 ## 1.0.1
 
-- Added an automated xUnit test suite (`tests\DbServeApp.Tests`, 123 tests).
+- Added an automated xUnit test suite (`tests\DevDbStudio.Tests`, 123 tests).
 - Fixed: saving the instance list could occasionally fail on Windows when the file was briefly locked; the save is now retried.
 
 ## 1.0.0

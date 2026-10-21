@@ -1,4 +1,4 @@
-window.dbServe = {
+window.devDbStudio = {
     storageGet: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
     storageSet: (key, value) => { try { localStorage.setItem(key, value); } catch { } },
     download: (filename, content, mime) => {

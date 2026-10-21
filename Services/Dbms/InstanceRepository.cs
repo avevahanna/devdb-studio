@@ -2,7 +2,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed class StorageOptions
 {

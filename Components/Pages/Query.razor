@@ -1,6 +1,6 @@
 ﻿@page "/query"
 @using System.Text.Json
-@using DbServeApp.Services.Dbms
+@using DevDbStudio.Services.Dbms
 @implements IDisposable
 @inject IInstanceManager Manager
 @inject ITableDataService Data
@@ -194,7 +194,7 @@ else
     {
         try
         {
-            var json = await JS.InvokeAsync<string?>("dbServe.storageGet", key);
+            var json = await JS.InvokeAsync<string?>("devDbStudio.storageGet", key);
             return string.IsNullOrEmpty(json) ? [] : JsonSerializer.Deserialize<List<T>>(json) ?? [];
         }
         catch (Exception ex) when (ex is JsonException or JSException or InvalidOperationException) { return []; }
@@ -202,7 +202,7 @@ else
 
     private async Task WriteStoredAsync<T>(string key, List<T> items)
     {
-        try { await JS.InvokeVoidAsync("dbServe.storageSet", key, JsonSerializer.Serialize(items)); }
+        try { await JS.InvokeVoidAsync("devDbStudio.storageSet", key, JsonSerializer.Serialize(items)); }
         catch (Exception ex) when (ex is JSException or InvalidOperationException) { }
     }
 

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>Live figures read from inside a database server (not from the container engine).</summary>
 public sealed record DbInsight(bool Ok, int Connections, int MaxConnections, int UserDatabases, double SizeMb, string? Error)

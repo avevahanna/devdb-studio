@@ -1,4 +1,4 @@
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed class MySqlProvider(IWslDockerRunner docker, ILogger<MySqlProvider> log) : MySqlFamilyProvider(docker, log)
 {

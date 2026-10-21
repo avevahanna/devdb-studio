@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed record InstanceListResult(IReadOnlyList<DbInstance> Instances, string? Error);
 
@@ -108,7 +108,7 @@ public sealed class InstanceManager(
             if (!result.Success &&
                 (output.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase) ||
                  output.Contains("address already in use", StringComparison.OrdinalIgnoreCase)))
-                return InstanceCreateResult.Fail($"Port {req.HostPort} is already in use by another container or process outside DB Serve. Choose a different host port.", result.StdErr);
+                return InstanceCreateResult.Fail($"Port {req.HostPort} is already in use by another container or process outside DevDb Studio. Choose a different host port.", result.StdErr);
             return result;
         }
         finally { _createLock.Release(); }

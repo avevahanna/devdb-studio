@@ -1,8 +1,8 @@
-using DbServeApp.Services;
-using DbServeApp.Services.Dbms;
+using DevDbStudio.Services;
+using DevDbStudio.Services.Dbms;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DbServeApp.Tests;
+namespace DevDbStudio.Tests;
 
 public class MongoDbTests
 {

@@ -1,6 +1,6 @@
-using DbServeApp.Components;
-using DbServeApp.Services;
-using DbServeApp.Services.Dbms;
+using DevDbStudio.Components;
+using DevDbStudio.Services;
+using DevDbStudio.Services.Dbms;
 
 var builder = WebApplication.CreateBuilder(args);
 

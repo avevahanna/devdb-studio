@@ -1,7 +1,7 @@
 ﻿using System.Globalization;
 using System.Text.Json;
 
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 public sealed record MountInfo(string Type, string Name, string Source, string Destination, bool ReadWrite);
 public sealed record NetAttach(string Network, string Ip, string Gateway);

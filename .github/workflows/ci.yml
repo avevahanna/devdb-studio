@@ -17,11 +17,11 @@ jobs:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: |
-            DbServeApp.csproj
-            tests/DbServeApp.Tests/DbServeApp.Tests.csproj
+            DevDbStudio.csproj
+            tests/DevDbStudio.Tests/DevDbStudio.Tests.csproj
 
       - name: Build
-        run: dotnet build DbServeApp.csproj --configuration Release -warnaserror
+        run: dotnet build DevDbStudio.csproj --configuration Release -warnaserror
 
       - name: Test
-        run: dotnet test tests/DbServeApp.Tests --configuration Release
+        run: dotnet test tests/DevDbStudio.Tests --configuration Release

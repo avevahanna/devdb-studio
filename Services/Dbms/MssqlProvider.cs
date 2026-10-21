@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed class MssqlProvider(IWslDockerRunner docker, ILogger<MssqlProvider> log) : IDbmsProvider
 {

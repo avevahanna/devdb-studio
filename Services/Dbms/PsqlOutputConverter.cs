@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>
 /// Rewrites psql's aligned output into the tab-separated layout that <see cref="SqlcmdOutputParser"/> understands,

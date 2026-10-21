@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public enum MyKind { Int, Decimal, Float, Bool, Text, Date, DateTime, Time, Year, Uuid, Json, Blob, Enum, Set, Unknown }
 

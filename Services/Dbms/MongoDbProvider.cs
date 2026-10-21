@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>MongoDB (document database). Scripts are JavaScript run with mongosh inside the container.</summary>
 public sealed class MongoDbProvider(IWslDockerRunner docker, ILogger<MongoDbProvider> log) : IDbmsProvider

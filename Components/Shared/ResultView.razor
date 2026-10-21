@@ -1,6 +1,6 @@
 ﻿@using System.Text
 @using System.Text.Json
-@using DbServeApp.Services.Dbms
+@using DevDbStudio.Services.Dbms
 @inject IJSRuntime JS
 
 <div class="result">
@@ -65,7 +65,7 @@
         var (content, ext, mime) = json
             ? (ToJson(t), "json", "application/json")
             : ("\uFEFF" + ToCsv(t), "csv", "text/csv");
-        await JS.InvokeVoidAsync("dbServe.download", $"{name}.{ext}", content, $"{mime};charset=utf-8");
+        await JS.InvokeVoidAsync("devDbStudio.download", $"{name}.{ext}", content, $"{mime};charset=utf-8");
     }
 
     private static string ToCsv(ResultTable t)

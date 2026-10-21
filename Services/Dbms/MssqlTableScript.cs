@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 public sealed class ColumnDef
 {

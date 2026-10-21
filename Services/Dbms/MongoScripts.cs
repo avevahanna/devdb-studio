@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>mongosh snippets and parsing of their JSON output.</summary>
 public static class MongoScripts

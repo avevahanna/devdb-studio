@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace DbServeApp.Services.Dbms;
+namespace DevDbStudio.Services.Dbms;
 
 /// <summary>TimescaleDB: PostgreSQL with the time-series extension. Everything but the image is shared with PostgreSQL.</summary>
 public sealed partial class TimescaleDbProvider(IWslDockerRunner docker, ILogger<TimescaleDbProvider> log) : PostgresFamilyProvider(docker, log)

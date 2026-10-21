@@ -1,4 +1,4 @@
-namespace DbServeApp.Services;
+namespace DevDbStudio.Services;
 
 /// <summary>
 /// Moves <c>-e NAME=value</c> options of <c>run</c>/<c>exec</c> out of the command line. The value is handed to the

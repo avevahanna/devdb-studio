@@ -1,8 +1,8 @@
-using DbServeApp.Services.Dbms;
+using DevDbStudio.Services.Dbms;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace DbServeApp.Tests;
+namespace DevDbStudio.Tests;
 
 public sealed class JsonInstanceRepositoryTests : IDisposable
 {

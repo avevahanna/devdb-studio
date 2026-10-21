@@ -4,7 +4,7 @@
 @inject IDbInsightService Insights
 @implements IDisposable
 @using System.Globalization
-@using DbServeApp.Services.Dbms
+@using DevDbStudio.Services.Dbms
 
 <PageTitle>Status</PageTitle>
 
@@ -227,7 +227,7 @@ else
                             <div class="muted small">@c.Image@(c.Project.Length > 0 ? $" · {c.Project}" : "")</div>
                             @if (inst is not null)
                             {
-                                <span class="chip chip--brand">DB Serve · @(Manager.GetProvider(inst.DbmsKey)?.DisplayName ?? inst.DbmsKey) · @inst.Name</span>
+                                <span class="chip chip--brand">DevDb Studio · @(Manager.GetProvider(inst.DbmsKey)?.DisplayName ?? inst.DbmsKey) · @inst.Name</span>
                             }
                         </td>
                         <td>
@@ -379,7 +379,7 @@ else
                                 @if (sel.Project.Length > 0) { <dt>Compose project</dt><dd>@sel.Project</dd> }
                                 @if (selInst is not null)
                                 {
-                                    <dt>DB Serve</dt><dd>@selInst.Name · @(Manager.GetProvider(selInst.DbmsKey)?.DisplayName) · database <code>@selInst.DatabaseName</code> on <code>127.0.0.1:@selInst.HostPort</code></dd>
+                                    <dt>DevDb Studio</dt><dd>@selInst.Name · @(Manager.GetProvider(selInst.DbmsKey)?.DisplayName) · database <code>@selInst.DatabaseName</code> on <code>127.0.0.1:@selInst.HostPort</code></dd>
                                 }
                             </dl>
                         </div>
