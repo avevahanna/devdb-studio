@@ -1,7 +1,10 @@
 ﻿@page "/query"
+@using System.Text.Json
 @using DbServeApp.Services.Dbms
 @implements IDisposable
 @inject IInstanceManager Manager
+@inject ITableDataService Data
+@inject IJSRuntime JS
 
 <PageTitle>Query</PageTitle>
 
@@ -40,17 +43,21 @@ else
                 </div>
             }
             <label class="field">Database
-                <input type="text" @bind="_database" disabled="@_busy" />
+                <input type="text" list="query-databases" @bind="_database" disabled="@_busy" />
+                <datalist id="query-databases">
+                    @foreach (var d in _databases) { <option value="@d"></option> }
+                </datalist>
             </label>
             <label class="field">SQL
-                <textarea rows="10" @bind="_sql" @bind:event="oninput" spellcheck="false" disabled="@_busy"></textarea>
+                <textarea rows="10" @bind="_sql" @bind:event="oninput" spellcheck="false" disabled="@_busy" data-run-target="#run-query"></textarea>
             </label>
             <div class="toolbar">
-                <button class="btn btn-primary" @onclick="RunAsync" disabled="@(_busy || !CanRun)">
+                <button id="run-query" class="btn btn-primary" @onclick="RunAsync" disabled="@(_busy || !CanRun)">
                     @if (_busy) { <span class="spinner"></span> }
                     Run
                 </button>
                 <button class="btn btn-sm" @onclick="RefreshAsync" disabled="@(_busy || _refreshing)">Re-run status</button>
+                <span class="muted">Ctrl+Enter runs the query.</span>
                 @if (!CanRun && SelectedInstance is not null)
                 {
                     <span class="muted">The instance must be running to execute queries.</span>
@@ -85,6 +92,61 @@ else
             </div>
         </div>
     }
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card__head">
+                <span class="card__title">History</span>
+                @if (_history.Count > 0) { <button class="btn btn-sm" @onclick="ClearHistoryAsync">Clear</button> }
+            </div>
+            <div class="card__body">
+                @if (_history.Count == 0)
+                {
+                    <p class="muted">Queries you run on this instance appear here.</p>
+                }
+                else
+                {
+                    <ul class="saved">
+                        @foreach (var h in _history)
+                        {
+                            <li>
+                                <button class="saved__main" title="@h.Sql" @onclick="() => _sql = h.Sql">
+                                    <span class="saved__sql">@Preview(h.Sql)</span>
+                                    <span class="muted">@h.Utc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+        <div class="card">
+            <div class="card__head"><span class="card__title">Saved snippets</span></div>
+            <div class="card__body form">
+                <div class="toolbar">
+                    <label class="field">Name
+                        <input type="text" maxlength="60" @bind="_snippetName" @bind:event="oninput" placeholder="e.g. Row counts" />
+                    </label>
+                    <button class="btn btn-sm" @onclick="SaveSnippetAsync" disabled="@(string.IsNullOrWhiteSpace(_snippetName) || string.IsNullOrWhiteSpace(_sql))">Save current SQL</button>
+                </div>
+                @if (_snippets.Count > 0)
+                {
+                    <ul class="saved">
+                        @foreach (var s in _snippets)
+                        {
+                            <li>
+                                <button class="saved__main" title="@s.Sql" @onclick="() => _sql = s.Sql">
+                                    <strong>@s.Name</strong>
+                                    <span class="saved__sql muted">@Preview(s.Sql)</span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSnippetAsync(s)">Delete</button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -98,11 +160,92 @@ else
     private const string MariaDbSample = "SELECT VERSION() AS version;";
     private string _sql = MssqlSample;
     private string _database = "";
-    private bool _busy, _refreshing;
+    private bool _busy, _refreshing, _rendered;
     private QueryResult? _result;
+    private IReadOnlyList<string> _databases = [];
+    private List<HistoryItem> _history = [];
+    private List<Snippet> _snippets = [];
+    private string _snippetName = "";
+
+    private const int MaxHistory = 20;
+    private const string SnippetsKey = "dbserve-snippets";
+    private sealed record HistoryItem(string Sql, DateTime Utc);
+    private sealed record Snippet(string Name, string Sql);
+    private string HistoryKey => $"dbserve-history-{_selected}";
 
     private DbInstance? SelectedInstance => _instances?.FirstOrDefault(i => i.Id == _selected);
     private bool CanRun => SelectedInstance?.Status == InstanceStatus.Running && !string.IsNullOrWhiteSpace(_sql);
+
+    private static string Preview(string sql)
+    {
+        var s = string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return s.Length > 90 ? s[..90] + "…" : s;
+    }
+
+    private async Task<List<T>> ReadStoredAsync<T>(string key)
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("dbServe.storageGet", key);
+            return string.IsNullOrEmpty(json) ? [] : JsonSerializer.Deserialize<List<T>>(json) ?? [];
+        }
+        catch (Exception ex) when (ex is JsonException or JSException or InvalidOperationException) { return []; }
+    }
+
+    private async Task WriteStoredAsync<T>(string key, List<T> items)
+    {
+        try { await JS.InvokeVoidAsync("dbServe.storageSet", key, JsonSerializer.Serialize(items)); }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _rendered = true;
+        _snippets = await ReadStoredAsync<Snippet>(SnippetsKey);
+        _history = await ReadStoredAsync<HistoryItem>(HistoryKey);
+        await LoadDatabasesAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadDatabasesAsync()
+    {
+        _databases = [];
+        if (SelectedInstance is not { Status: InstanceStatus.Running }) return;
+        try { _databases = await Data.ListDatabasesAsync(_selected, _cts.Token); }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task AddHistoryAsync(string sql)
+    {
+        if (!_rendered || string.IsNullOrWhiteSpace(sql)) return;
+        _history.RemoveAll(h => h.Sql == sql);
+        _history.Insert(0, new HistoryItem(sql, DateTime.UtcNow));
+        if (_history.Count > MaxHistory) _history.RemoveRange(MaxHistory, _history.Count - MaxHistory);
+        await WriteStoredAsync(HistoryKey, _history);
+    }
+
+    private async Task ClearHistoryAsync()
+    {
+        _history = [];
+        await WriteStoredAsync(HistoryKey, _history);
+    }
+
+    private async Task SaveSnippetAsync()
+    {
+        var name = _snippetName.Trim();
+        if (name.Length == 0 || string.IsNullOrWhiteSpace(_sql)) return;
+        _snippets.RemoveAll(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+        _snippets.Insert(0, new Snippet(name, _sql));
+        _snippetName = "";
+        await WriteStoredAsync(SnippetsKey, _snippets);
+    }
+
+    private async Task DeleteSnippetAsync(Snippet s)
+    {
+        _snippets.Remove(s);
+        await WriteStoredAsync(SnippetsKey, _snippets);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -127,20 +270,27 @@ else
             };
     }
 
-    private void OnInstanceChanged(ChangeEventArgs e)
+    private async Task OnInstanceChanged(ChangeEventArgs e)
     {
         if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
         _selected = id;
         _database = SelectedInstance?.DatabaseName ?? "";
         UseSampleForInstance();
         _result = null;
+        if (!_rendered) return;
+        _history = await ReadStoredAsync<HistoryItem>(HistoryKey);
+        await LoadDatabasesAsync();
     }
 
     private async Task RefreshAsync()
     {
         if (_refreshing) return;
         _refreshing = true;
-        try { _instances = (await Manager.RefreshStatusAsync(_cts.Token)).Instances; }
+        try
+        {
+            _instances = (await Manager.RefreshStatusAsync(_cts.Token)).Instances;
+            if (_rendered && _databases.Count == 0) await LoadDatabasesAsync();
+        }
         catch (OperationCanceledException) { }
         finally { _refreshing = false; }
     }
@@ -158,6 +308,7 @@ else
         catch (OperationCanceledException) { return; }
         catch (Exception ex) { _result = new QueryResult(false, "", ex.Message, -1, TimeSpan.Zero); }
         finally { _busy = false; }
+        await AddHistoryAsync(_sql);
     }
 
     public void Dispose()

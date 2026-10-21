@@ -7,10 +7,12 @@ public sealed record TableRef(string Schema, string Name)
 
 public sealed record TableListResult(IReadOnlyList<TableRef> Tables, string? Error);
 
-/// <summary>Table data operations (random population, clearing) for SQL Server and PostgreSQL.</summary>
+/// <summary>Table data operations (random population, clearing) for SQL Server, PostgreSQL, MariaDB and MySQL.</summary>
 public interface ITableDataService
 {
     Task<TableListResult> ListTablesAsync(Guid instanceId, string database, CancellationToken ct = default);
+    /// <summary>User databases on the instance (system databases excluded); empty when the instance cannot be queried.</summary>
+    Task<IReadOnlyList<string>> ListDatabasesAsync(Guid instanceId, CancellationToken ct = default);
     Task<QueryResult> PopulateAsync(Guid instanceId, string database, string schema, string table, int rows, CancellationToken ct = default);
     Task<QueryResult> ClearAsync(Guid instanceId, string database, string schema, string table, CancellationToken ct = default);
 }
@@ -37,6 +39,21 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
 
     private Task<QueryResult> RunMy(Guid id, string database, string sql, CancellationToken ct) =>
         manager.ExecuteSqlAsync(id, TableDialect.MariaDb.Use(database) + sql, ct);
+
+    public async Task<IReadOnlyList<string>> ListDatabasesAsync(Guid instanceId, CancellationToken ct = default)
+    {
+        var sql = await DbmsKeyAsync(instanceId, ct) switch
+        {
+            PostgresProvider.ProviderKey => "SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1;",
+            MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey =>
+                "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema','performance_schema','mysql','sys') ORDER BY 1;",
+            _ => "SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name;",
+        };
+        var r = await manager.ExecuteSqlAsync(instanceId, sql, ct);
+        if (!r.IsSuccess) return [];
+        var table = SqlcmdOutputParser.Parse(r.StdOut).Select(b => b.Table).FirstOrDefault(t => t is not null);
+        return table?.Rows.Where(x => x.Count >= 1 && x[0].Length > 0).Select(x => x[0]).ToList() ?? [];
+    }
 
     public async Task<TableListResult> ListTablesAsync(Guid instanceId, string database, CancellationToken ct = default)
     {

@@ -1,6 +1,6 @@
 namespace DbServeApp.Services.Dbms;
 
-/// <summary>A DBMS flavour (SQL Server, PostgreSQL, ...) that knows how to run itself as a container in WSL.</summary>
+/// <summary>A DBMS flavour (SQL Server, PostgreSQL, MariaDB, MySQL) that knows how to run itself as a container in WSL.</summary>
 public interface IDbmsProvider
 {
     string Key { get; }

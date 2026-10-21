@@ -1,4 +1,7 @@
-﻿@using DbServeApp.Services.Dbms
+﻿@using System.Text
+@using System.Text.Json
+@using DbServeApp.Services.Dbms
+@inject IJSRuntime JS
 
 <div class="result">
     @if (_blocks.Count > 0)
@@ -18,6 +21,10 @@
         {
             @if (b.Table is { } t)
             {
+                <div class="result__export">
+                    <button type="button" class="btn btn-sm" @onclick="() => ExportAsync(t, false)">Download CSV</button>
+                    <button type="button" class="btn btn-sm" @onclick="() => ExportAsync(t, true)">Download JSON</button>
+                </div>
                 <div class="grid-wrap">
                     <table class="grid">
                         <thead><tr><th class="grid__n">#</th>@foreach (var c in t.Columns) { <th>@c</th> }</tr></thead>
@@ -49,6 +56,45 @@
     private IReadOnlyList<ResultBlock> _blocks = [];
     private string? _parsedFor;
     private bool _raw;
+
+    private async Task ExportAsync(ResultTable t, bool json)
+    {
+        var name = $"result-{DateTime.Now:yyyyMMdd-HHmmss}";
+        var (content, ext, mime) = json
+            ? (ToJson(t), "json", "application/json")
+            : ("\uFEFF" + ToCsv(t), "csv", "text/csv");
+        await JS.InvokeVoidAsync("dbServe.download", $"{name}.{ext}", content, $"{mime};charset=utf-8");
+    }
+
+    private static string ToCsv(ResultTable t)
+    {
+        static string Q(string v) => v.IndexOfAny(['"', ',', ';', '\r', '\n']) >= 0 ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
+        var sb = new StringBuilder();
+        sb.Append(string.Join(',', t.Columns.Select(Q))).Append("\r\n");
+        foreach (var row in t.Rows)
+            sb.Append(string.Join(',', row.Select(v => v == "NULL" ? "" : Q(v)))).Append("\r\n");
+        return sb.ToString();
+    }
+
+    private static string ToJson(ResultTable t)
+    {
+        // Duplicate or empty column names get a numeric suffix so every value is kept.
+        var names = new List<string>();
+        for (var i = 0; i < t.Columns.Count; i++)
+        {
+            var n = t.Columns[i].Length == 0 ? $"column{i + 1}" : t.Columns[i];
+            var unique = n;
+            for (var k = 2; names.Contains(unique); k++) unique = $"{n}_{k}";
+            names.Add(unique);
+        }
+        var rows = t.Rows.Select(r =>
+        {
+            var o = new Dictionary<string, string?>();
+            for (var i = 0; i < names.Count; i++) o[names[i]] = i < r.Count && r[i] != "NULL" ? r[i] : null;
+            return o;
+        });
+        return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+    }
 
     protected override void OnParametersSet()
     {

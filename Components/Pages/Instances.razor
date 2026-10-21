@@ -47,9 +47,42 @@
 else if (_instances.Count == 0)
 {
     <div class="card">
-        <div class="card__note" style="padding-top:14px">
-            No instances yet. <a href="/instances/create">Create your first database instance</a>.
+        <div class="card__head">
+            <span class="card__title">Get started</span>
+            <span class="muted">Four steps from nothing to a database with data in it.</span>
         </div>
+        <ol class="steps">
+            <li class="step @(_dockerError is null ? "step--done" : "step--todo")">
+                <span class="step__n">@(_dockerError is null ? "✓" : "1")</span>
+                <div class="step__body">
+                    <strong>Check prerequisites</strong>
+                    <span class="muted">WSL2, Ubuntu and Docker or Podman.@(_dockerError is null ? " The container engine is reachable." : " The container engine is not reachable yet.")</span>
+                </div>
+                <a class="btn btn-sm @(_dockerError is null ? "" : "btn-primary")" href="/setup">Open setup</a>
+            </li>
+            <li class="step @(_dockerError is null ? "step--todo" : "step--locked")">
+                <span class="step__n">2</span>
+                <div class="step__body">
+                    <strong>Create your first instance</strong>
+                    <span class="muted">Pick SQL Server, PostgreSQL, MariaDB or MySQL.</span>
+                </div>
+                <a class="btn btn-sm btn-primary" href="/instances/create">Create instance</a>
+            </li>
+            <li class="step step--locked">
+                <span class="step__n">3</span>
+                <div class="step__body">
+                    <strong>Design a first table</strong>
+                    <span class="muted">Use the visual designer to generate and run <code>CREATE TABLE</code>.</span>
+                </div>
+            </li>
+            <li class="step step--locked">
+                <span class="step__n">4</span>
+                <div class="step__body">
+                    <strong>Fill it with data and query it</strong>
+                    <span class="muted">Populate random rows on Table data, then explore them on Query.</span>
+                </div>
+            </li>
+        </ol>
     </div>
 }
 else
