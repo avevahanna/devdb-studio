@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 
 namespace DbServeApp.Services;
 
-public sealed class WslKeepAliveService(IOptions<WslOptions> options, ILogger<WslKeepAliveService> log) : BackgroundService
+public sealed class WslKeepAliveService(IOptions<WslOptions> options, IContainerEngine engine, ILogger<WslKeepAliveService> log) : BackgroundService
 {
     private readonly WslOptions _opt = options.Value;
 
@@ -15,6 +15,7 @@ public sealed class WslKeepAliveService(IOptions<WslOptions> options, ILogger<Ws
         {
             try
             {
+                var distro = await engine.GetDistroAsync(stoppingToken);
                 var psi = new ProcessStartInfo("wsl.exe")
                 {
                     UseShellExecute = false,
@@ -24,7 +25,7 @@ public sealed class WslKeepAliveService(IOptions<WslOptions> options, ILogger<Ws
                     RedirectStandardInput = true,
                 };
                 psi.ArgumentList.Add("-d");
-                psi.ArgumentList.Add(_opt.DistroName);
+                psi.ArgumentList.Add(distro);
                 psi.ArgumentList.Add("--exec");
                 // cat blocks on stdin; when this app dies (even hard-killed) the pipe closes, cat exits and so does wsl.exe.
                 psi.ArgumentList.Add("cat");

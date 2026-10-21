@@ -9,6 +9,13 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DbServeApp.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 1.2.0
+
+- The WSL distro is now **auto-detected** (default `Wsl:DistroName` is `Auto`): the first distro with a working Docker or Podman is used, so Ubuntu, Debian, Fedora, `podman-machine-default` and others work without configuration. Docker Desktop's helper distros are ignored.
+- The Setup page has a **WSL distro** selector next to the container engine selector; the choice is saved in `settings.json`. An explicit `Wsl:DistroName` still works.
+- Setup checks and install hints no longer assume Ubuntu.
+- 7 new tests (138 total).
+
 ## 1.1.0
 
 - Added **MongoDB** support (`docker.io/library/mongo`, default tag `8`): create, start, stop and delete; connection string includes the database and `authSource=admin`.

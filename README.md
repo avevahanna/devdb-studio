@@ -1,12 +1,12 @@
 # DB Serve
 
-A local web app for creating and managing database servers that run as **Docker or Podman** containers inside **Ubuntu on WSL2** — no Docker Desktop required.
+A local web app for creating and managing database servers that run as **Docker or Podman** containers inside a **WSL2 Linux distro** (auto-detected, Ubuntu not required) — no Docker Desktop required.
 
 Built with .NET 10 Blazor Server (interactive server rendering), running on Windows.
 
 ## Features
 
-- **Setup** (`/setup`) – prerequisite checker for WSL, the Ubuntu distro, the container engine (Docker or Podman: CLI, daemon/`info`, Compose). Failed checks show why it matters and exact fix commands. The **Container engine** selector switches between auto-detect (a working Docker is preferred, then Podman), Docker and Podman; the choice is saved in `settings.json` next to the instances file.
+- **Setup** (`/setup`) – prerequisite checker for WSL, the Linux distro, the container engine (Docker or Podman: CLI, daemon/`info`, Compose). Failed checks show why it matters and exact fix commands. The **WSL distro** and **Container engine** selectors both default to auto-detect (a working Docker is preferred, then Podman, in the first distro that has one); the choices are saved in `settings.json` next to the instances file.
 - **Instances** (`/instances`, `/instances/create`) – create, start, stop and delete database instances. Cards show the DBMS, status, port, and a connection string with reveal and copy-to-clipboard.
 - **Query** (`/query`) – run SQL against a running instance and view results as tables (with a raw-output toggle). Uses `sqlcmd` for SQL Server, `psql` for PostgreSQL, `mariadb` for MariaDB and `mysql` for MySQL and `mongosh` (JavaScript, e.g. `db.customers.insertOne({ name: "Anna" })` and `db.customers.find()`) for MongoDB, whose output is shown as plain text. Run with **Ctrl+Enter**, pick the database from a list of the instance's databases, re-use the last 20 queries per instance (history) or named snippets (both stored in the browser's local storage), and download any result table as **CSV** or **JSON**.
 - **Tables** (`/tables`) – visual table designer that generates a `CREATE TABLE` script (T-SQL, PostgreSQL, MariaDB or MySQL, depending on the instance) and runs it.
@@ -34,8 +34,8 @@ New DBMS support is added by implementing `IDbmsProvider` (`Services/Dbms`) and 
 
 ## Prerequisites
 
-- Windows with WSL2 and an Ubuntu distro
-- Docker Engine + Compose plugin, **or** Podman, installed **inside** Ubuntu
+- Windows with WSL2 and any Linux distro (Ubuntu, Debian, Fedora, a Podman machine, …); it is detected automatically
+- Docker Engine + Compose plugin, **or** Podman, installed **inside** that distro
 - .NET 10 SDK
 
 The Setup page verifies these and explains how to fix anything missing.
@@ -60,7 +60,7 @@ The xUnit suite covers the pure logic (input validation, SQL generation and vali
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `Wsl:DistroName` | `Ubuntu` | WSL distro that hosts Docker |
+| `Wsl:DistroName` | `Auto` | WSL distro that hosts Docker or Podman. `Auto` picks the first distro with a working engine; a name pins one. The Setup page selector (saved in `settings.json`) overrides it |
 | `Wsl:CommandTimeoutSeconds` | `10` | Default timeout for `wsl.exe` commands |
 | `Wsl:ColdStartTimeoutSeconds` | `60` | Timeout when WSL is starting up |
 | `Wsl:KeepAlive` | `true` | Keeps a `wsl.exe` session open so WSL doesn't shut down and stop the containers while the app runs |

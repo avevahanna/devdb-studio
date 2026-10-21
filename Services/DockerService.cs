@@ -109,7 +109,8 @@ public sealed partial class DockerService : IDockerService
     private async Task<ProcessResult> Docker(CancellationToken ct, TimeSpan? timeout, params string[] args)
     {
         var exe = await _engine.GetExecutableAsync(ct);
-        return await ProcessRunner.RunAsync("wsl.exe", ["-d", _opt.DistroName, "--exec", exe, .. args],
+        var distro = await _engine.GetDistroAsync(ct);
+        return await ProcessRunner.RunAsync("wsl.exe", ["-d", distro, "--exec", exe, .. args],
             timeout ?? TimeSpan.FromSeconds(Math.Max(_opt.CommandTimeoutSeconds, 15)), ct);
     }
 
@@ -142,7 +143,7 @@ public sealed partial class DockerService : IDockerService
             var info = await Docker(ct, null, "info", "--format", "json");
             // After `wsl --shutdown` the first call boots the VM and can exceed the normal timeout.
             if (info.TimedOut)
-                info = await ProcessRunner.RunAsync("wsl.exe", ["-d", _opt.DistroName, "--exec", await _engine.GetExecutableAsync(ct), "info", "--format", "json"],
+                info = await ProcessRunner.RunAsync("wsl.exe", ["-d", await _engine.GetDistroAsync(ct), "--exec", await _engine.GetExecutableAsync(ct), "info", "--format", "json"],
                     TimeSpan.FromSeconds(_opt.ColdStartTimeoutSeconds), ct);
             if (info.ExitCode != 0)
             {

@@ -16,7 +16,8 @@ public sealed class WslDockerRunner(IOptions<WslOptions> options, IContainerEngi
     public async Task<ProcessResult> RunAsync(IEnumerable<string> dockerArgs, TimeSpan? timeout = null, string? stdin = null, CancellationToken ct = default)
     {
         var exe = await engine.GetExecutableAsync(ct);
-        return await ProcessRunner.RunAsync("wsl.exe", ["-d", _opt.DistroName, "--exec", exe, .. dockerArgs],
+        var distro = await engine.GetDistroAsync(ct);
+        return await ProcessRunner.RunAsync("wsl.exe", ["-d", distro, "--exec", exe, .. dockerArgs],
             timeout ?? TimeSpan.FromSeconds(Math.Max(_opt.CommandTimeoutSeconds, 15)), ct, stdin);
     }
 }

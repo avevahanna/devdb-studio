@@ -10,9 +10,20 @@
 <div class="page-header">
     <div>
         <h1>Setup status</h1>
-        <p>Checks that WSL2, Ubuntu and a container engine (Docker or Podman) are ready to host database servers.</p>
+        <p>Checks that WSL2, a Linux distro and a container engine (Docker or Podman) are ready to host database servers. Both the distro and the engine are detected automatically.</p>
     </div>
     <div class="toolbar">
+        <label class="field">
+            WSL distro
+            <select value="@Engine.DistroChoice" @onchange="OnDistroChanged" disabled="@_running">
+                <option value="@ContainerEngines.AutoDistro">Auto-detect</option>
+                @foreach (var d in _distros) { <option value="@d">@d</option> }
+                @if (!ContainerEngines.IsAuto(Engine.DistroChoice) && !_distros.Contains(Engine.DistroChoice, StringComparer.OrdinalIgnoreCase))
+                {
+                    <option value="@Engine.DistroChoice">@Engine.DistroChoice</option>
+                }
+            </select>
+        </label>
         <label class="field">
             Container engine
             <select value="@Engine.Choice" @onchange="OnEngineChanged" disabled="@_running">
@@ -31,8 +42,9 @@
 @if (_effective is not null)
 {
     <p class="muted">
-        Using <strong>@ContainerEngines.DisplayName(_effective)</strong>@(Engine.Choice == EngineChoice.Auto ? " (auto-detected)" : "").
-        Instances live in the engine that created them, so switching engines hides existing instances (they show as not found) until you switch back.
+        Using <strong>@ContainerEngines.DisplayName(_effective)</strong>@(Engine.Choice == EngineChoice.Auto ? " (auto-detected)" : "")
+        in <strong>@_effectiveDistro</strong>@(ContainerEngines.IsAuto(Engine.DistroChoice) ? " (auto-detected)" : "").
+        Instances live in the engine and distro that created them, so switching either hides existing instances (they show as not found) until you switch back.
     </p>
 }
 
@@ -90,13 +102,20 @@
 
 @code {
     private IReadOnlyList<CheckResult>? _results;
-    private string? _effective;
+    private string? _effective, _effectiveDistro;
+    private IReadOnlyList<string> _distros = [];
     private bool _running;
     private readonly CancellationTokenSource _cts = new();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender) await RunAsync();
+    }
+
+    private async Task OnDistroChanged(ChangeEventArgs e)
+    {
+        await Engine.SetDistroAsync(e.Value?.ToString() ?? ContainerEngines.AutoDistro, _cts.Token);
+        await RunAsync();
     }
 
     private async Task OnEngineChanged(ChangeEventArgs e)
@@ -115,6 +134,8 @@
         {
             _results = await Checks.RunChecksAsync(_cts.Token);
             _effective = await Engine.GetExecutableAsync(_cts.Token);
+            _effectiveDistro = await Engine.GetDistroAsync(_cts.Token);
+            _distros = await Engine.ListDistrosAsync(_cts.Token);
         }
         catch (OperationCanceledException) { }
         finally { _running = false; }

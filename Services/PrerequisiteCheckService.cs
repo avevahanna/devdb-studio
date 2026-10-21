@@ -6,7 +6,7 @@ public enum CheckStatus { Unknown, Pass, Fail }
 
 public sealed class WslOptions
 {
-    public string DistroName { get; set; } = "Ubuntu";
+    public string DistroName { get; set; } = "Auto";
     public int CommandTimeoutSeconds { get; set; } = 10;
     public int ColdStartTimeoutSeconds { get; set; } = 60;
     // Holds a wsl.exe session open so WSL doesn't shut down the VM (and kill containers) while idle.
@@ -32,8 +32,9 @@ public sealed class PrerequisiteCheckService(IOptions<WslOptions> options, ICont
 
     public async Task<IReadOnlyList<CheckResult>> RunChecksAsync(CancellationToken ct = default)
     {
-        var d = _opt.DistroName;
         var results = new List<CheckResult>();
+        var autoDistro = ContainerEngines.IsAuto(_engine.DistroChoice);
+        var wanted = autoDistro ? "Ubuntu" : _engine.DistroChoice;
 
         var wsl = await Run("wsl", "WSL available", "The container engine for this app runs inside WSL2, which must be installed.",
             ["--status"], r => r.ExitCode == 0,
@@ -44,34 +45,37 @@ public sealed class PrerequisiteCheckService(IOptions<WslOptions> options, ICont
             """, ct);
         results.Add(wsl);
 
-        var distro = await Run("distro", $"{d} distro installed", $"Docker or Podman is installed in the '{d}' WSL distribution.",
+        var distro = await Run("distro", autoDistro ? "WSL distro installed" : $"{wanted} distro installed",
+            autoDistro ? "Docker or Podman runs inside a WSL distribution; any Linux distro will do." : $"Docker or Podman is installed in the '{wanted}' WSL distribution.",
             ["-l", "-q"],
-            r => r.ExitCode == 0 && r.StdOut.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                    .Any(l => string.Equals(l, d, StringComparison.OrdinalIgnoreCase)),
+            r => r.ExitCode == 0 && (autoDistro
+                ? ContainerEngines.ParseDistros(r.StdOut).Count > 0
+                : ContainerEngines.ParseDistros(r.StdOut).Any(l => string.Equals(l, wanted, StringComparison.OrdinalIgnoreCase))),
             $"""
             1. Open PowerShell.
-            2. Run: `wsl --install -d {d}`
-            3. Launch {d} once and create your Linux user.
+            2. Run: `wsl --install -d {wanted}`
+            3. Launch {wanted} once and create your Linux user.
             4. Verify with `wsl -l -q`.
             """, ct, dependsOn: wsl);
         results.Add(distro);
 
-        // Starting the WSL VM can take far longer than a normal command; absorb that once so later checks don't time out.
-        if (distro.Status == CheckStatus.Pass)
-            await ProcessRunner.RunAsync(Wsl, ["-d", d, "--exec", "true"], TimeSpan.FromSeconds(_opt.ColdStartTimeoutSeconds), ct);
-
-        // Re-detect on every run so a newly installed or started engine is picked up.
-        if (_engine.Choice == EngineChoice.Auto) _engine.InvalidateDetection();
+        // Re-detect on every run so a newly installed or started distro/engine is picked up.
+        _engine.InvalidateDetection();
+        var d = distro.Status == CheckStatus.Pass ? await _engine.GetDistroAsync(ct) : wanted;
         var exe = distro.Status == CheckStatus.Pass ? await _engine.GetExecutableAsync(ct) : "docker";
         var name = ContainerEngines.DisplayName(exe);
         var podman = exe == "podman";
+
+        // Starting the WSL VM can take far longer than a normal command; absorb that once so later checks don't time out.
+        if (distro.Status == CheckStatus.Pass)
+            await ProcessRunner.RunAsync(Wsl, ["-d", d, "--exec", "true"], TimeSpan.FromSeconds(_opt.ColdStartTimeoutSeconds), ct);
 
         var cli = await Run("engine-cli", $"{name} CLI installed", $"The app uses the {exe} command to create database containers.",
             ["-d", d, "--", exe, "--version"], r => r.ExitCode == 0,
             podman
                 ? $"""
                   1. Open {d}: `wsl -d {d}`
-                  2. Install Podman: `sudo apt-get update && sudo apt-get install -y podman`
+                  2. Install Podman with your distro's package manager, e.g. `sudo apt-get update && sudo apt-get install -y podman` (Debian/Ubuntu) or `sudo dnf install -y podman` (Fedora)
                   3. Verify: `podman --version`
                   4. Or install Docker instead and pick it under **Container engine** above.
                   """

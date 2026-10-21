@@ -53,7 +53,7 @@ public sealed partial class DockerService
         const string script = "cat /proc/loadavg; cat /proc/uptime; grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo; df -Pk /";
         try
         {
-            var r = await ProcessRunner.RunAsync("wsl.exe", ["-d", _opt.DistroName, "--exec", "sh", "-c", script],
+            var r = await ProcessRunner.RunAsync("wsl.exe", ["-d", await _engine.GetDistroAsync(ct), "--exec", "sh", "-c", script],
                 TimeSpan.FromSeconds(Math.Max(_opt.CommandTimeoutSeconds, 15)), ct);
             return r.ExitCode == 0 ? ParseHostMetrics(r.StdOut) : null;
         }
