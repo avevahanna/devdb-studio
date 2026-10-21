@@ -79,6 +79,10 @@ SQL Server containers are created with a named volume at `/var/opt/mssql`, named
 
 Authentication, multi-user support, automatic installation of WSL/Docker, and advanced result grids.
 
+## Versioning
+
+Semantic versioning (`MAJOR.MINOR.PATCH`). The version is set in `<Version>` in `DbServeApp.csproj`, shown in the sidebar footer, and each change is logged in [CHANGELOG.md](CHANGELOG.md).
+
 ## Author
 
 Mattias Dahlgren — [mattias.dahlgren@aveva.com](mailto:mattias.dahlgren@aveva.com)

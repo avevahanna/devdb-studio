@@ -48,7 +48,7 @@
         <div class="sidebar__foot">
             <strong>Mattias Dahlgren</strong>
             <a href="mailto:mattias.dahlgren@aveva.com">mattias.dahlgren@aveva.com</a>
-            <span>Docker &amp; Podman · WSL2</span>
+            <span>Docker &amp; Podman · WSL2 · v@(AppVersion)</span>
         </div>
     </aside>
 
@@ -76,3 +76,8 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private static readonly string AppVersion =
+        typeof(MainLayout).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "?";
+}
