@@ -16,8 +16,9 @@ It is for developers who work against local databases. It is **not** a productio
 
 ## Demo
 
-<!-- Add a screenshot or GIF here, e.g. docs/screenshot.png -->
-> Screenshot/GIF coming soon. Run the [quickstart](#quickstart) to see it live.
+![DevDb Studio screenshot](docs/screenshot.png)
+
+*Create and manage database containers from the browser.*
 
 ## Features
 
@@ -169,7 +170,7 @@ The xUnit suite covers validation, script generation, output parsing, engine JSO
 
 ## Roadmap
 
-- [ ] Screenshots and a demo GIF in this README
+- [ ] Demo GIF in this README
 - [ ] More DBMS providers (see the `add-dbms` skill in `.github/skills`)
 - [ ] Richer result grids
 
