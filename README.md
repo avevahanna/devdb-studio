@@ -1,101 +1,200 @@
 # DevDb Studio
 
-A local web app for creating and managing database servers that run as **Docker or Podman** containers — on **Windows** inside a **WSL2 Linux distro** (auto-detected, Ubuntu not required), or directly on **Linux**. No Docker Desktop required.
+**Spin up a local database server in seconds, and manage it from your browser.**
 
-Built with .NET 10 Blazor Server (interactive server rendering), running on Windows or Linux. The OS is detected automatically.
+DevDb Studio is a local web app that creates and manages database servers as Docker or Podman containers: on Windows inside WSL2, or directly on Linux. No Docker Desktop, no hand-written `docker run` commands.
+
+[![CI](https://github.com/mattias-aveva/devdb-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/mattias-aveva/devdb-studio/actions/workflows/ci.yml)
+![.NET 10](https://img.shields.io/badge/.NET-10-512bd4)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
+
+## Why
+
+Developers constantly need a throw-away SQL Server, PostgreSQL or Redis to try something out. Setting one up means remembering image names, ports, volumes and client tools, and cleaning up afterwards. DevDb Studio wraps all of that in one UI: pick a DBMS, click create, run queries, generate test data, delete it when you are done.
+
+It is for developers who work against local databases. It is **not** a production tool (see [Limitations](#limitations)).
+
+## Demo
+
+<!-- Add a screenshot or GIF here, e.g. docs/screenshot.png -->
+> Screenshot/GIF coming soon. Run the [quickstart](#quickstart) to see it live.
 
 ## Features
 
-- **Setup** (`/setup`) – prerequisite checker for WSL, the Linux distro, the container engine (Docker or Podman: CLI, daemon/`info`, Compose). Failed checks show why it matters and exact fix commands. The **WSL distro** and **Container engine** selectors both default to auto-detect (a working Docker is preferred, then Podman, in the first distro that has one); the choices are saved in `settings.json` next to the instances file.
-- **Instances** (`/instances`, `/instances/create`) – create, start, stop and delete database instances. Cards show the DBMS, status, port, and a connection string with reveal and copy-to-clipboard. The create page has a **compose preview**: the exact container settings as an editable compose file (port, tag, password and database sync back to the form) with warnings for problems.
-- **Query** (`/query`) – run SQL against a running instance and view results as tables (with a raw-output toggle). Uses `sqlcmd` for SQL Server, `psql` for PostgreSQL, `mariadb` for MariaDB and `mysql` for MySQL and `mongosh` (JavaScript, e.g. `db.customers.insertOne({ name: "Anna" })` and `db.customers.find()`) for MongoDB, whose output is shown as plain text. TimescaleDB uses `psql` like PostgreSQL; Redis uses `redis-cli` (one command per line, e.g. `SET greeting "Hello"`, `GET greeting`, `KEYS *`) with plain-text output. Run with **Ctrl+Enter**, pick the database from a list of the instance's databases, re-use the last 20 queries per instance (history) or named snippets (both stored in the browser's local storage), and download any result table as **CSV** or **JSON**.
-- **Tables** (`/tables`) – visual table designer that generates a `CREATE TABLE` script (T-SQL, PostgreSQL, MariaDB or MySQL, depending on the instance) and runs it.
-- **Table data** (`/data`) – pick a table and either fill it with 1–10,000 random rows or clear all of its data (with confirmation). Works for SQL Server, PostgreSQL, TimescaleDB, MariaDB and MySQL (not MongoDB or Redis; use the Query page there).
-  - Values are chosen from each column's name and type (e.g. `email`, `city`, `price`, `birthDate`) and respect length and precision. Identity/serial, generated and computed columns are skipped.
-  - Foreign keys, including composite ones, point at real rows in the referenced table; if it is empty you are asked to populate it first.
-  - Unique indexes and primary keys are honoured: unique columns continue above the existing maximum (or get unique suffixes/UUIDs). On SQL Server, foreign-key-only unique indexes (junction tables) get distinct combinations; on PostgreSQL, MariaDB and MySQL such indexes are reported as unsupported. If uniqueness can't be guaranteed you get a clear error.
-  - Inserts run in a single transaction, so a failure leaves the table unchanged. `CHECK` constraints are not known to the generator and can still cause a failure.
-  - Clearing uses `TRUNCATE`, or `DELETE` plus an identity/sequence reset when other tables reference the table (it fails if rows there still point at the table).
-- **Status** (`/status`) – live container engine statistics (CPU/memory, network and disk throughput, containers, images, volumes, networks, disk usage) with auto-refresh, plus container administration (start, stop, restart, pause, kill, remove, logs, inspect). It also shows per-container details (uptime, restarts, OOM, health, mounts, IPs), live database insights per instance (connections, databases, data size), host resources (load, memory, swap, disk), recent container events, and which containers use each image, volume and network. Podman data sources are best-effort.
-- **Help** (`/help`) – usage guide, page descriptions, a card per DBMS (logo, defaults, client, example), connection addresses and troubleshooting.
-- **Light/dark theme** – toggle in the top bar; defaults to your OS preference and remembers your choice. DBMS icons are served from `wwwroot/icons`. The sidebar layout, palette (blue `#3051db`, purple `#6b04a8`) and fonts (Mulish, Barlow) follow the AVEVA look.
-- **Getting started** – `/` opens the Instances page, which shows a four-step checklist (prerequisites → instance → table → data) until the first instance exists.
+- **One-click instances**: create, start, stop and delete SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB and Redis, with copyable connection strings and a compose preview.
+- **Built-in query editor**: run SQL (or mongosh / redis-cli commands) with Ctrl+Enter, browse results as tables, keep history and snippets, export to CSV or JSON.
+- **Table designer**: design a table visually and get a ready-to-run `CREATE TABLE` script for the right SQL dialect.
+- **Realistic test data**: fill tables with 1–10,000 random rows that respect column names, types, keys and unique indexes. Clear them again with one click.
+- **Live status**: engine, container and host statistics, logs, inspect and container administration.
+- **Guided setup**: a prerequisite checker explains what is missing and gives the exact fix commands.
+- **Light and dark theme**, following your OS preference.
 
-### Supported DBMS
+### Supported databases
 
-| DBMS | Status |
-|------|--------|
-| Microsoft SQL Server | Implemented |
-| PostgreSQL | Implemented |
-| MariaDB | Implemented |
-| MySQL | Implemented |
-| MongoDB | Implemented (Query with mongosh, Status insights; no table designer or table data) |
-| TimescaleDB | Implemented (PostgreSQL features; image `timescale/timescaledb`) |
-| Redis | Implemented (Query with redis-cli, Status insights; no table designer or table data) |
+| DBMS | Query | Table designer & data | Notes |
+|------|:-----:|:---------------------:|-------|
+| Microsoft SQL Server | `sqlcmd` | ✅ | |
+| PostgreSQL | `psql` | ✅ | |
+| TimescaleDB | `psql` | ✅ | PostgreSQL features |
+| MariaDB | `mariadb` | ✅ | |
+| MySQL | `mysql` | ✅ | |
+| MongoDB | `mongosh` | – | JavaScript, plain-text output |
+| Redis | `redis-cli` | – | One command per line |
 
-New DBMS support is added by implementing `IDbmsProvider` (`Services/Dbms`) and registering it in `Program.cs`.
+## Quickstart
 
-## Prerequisites
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) and Docker or Podman inside WSL2 (Windows) or on the host (Linux).
 
-- **Windows:** WSL2 and any Linux distro (Ubuntu, Debian, Fedora, a Podman machine, …); it is detected automatically
-- **Linux:** nothing besides the engine; the app talks to `docker` or `podman` on the host directly. Your user must be allowed to use it (`docker` group, or rootless Podman). No WSL distro, no keep-alive.
-- Docker Engine + Compose plugin, **or** Podman, installed **inside** that distro (Windows) or on the host (Linux)
-- .NET 10 SDK (or the self-contained publish: `dotnet publish -c Release -r linux-x64 --self-contained`; needs `libicu` on the host)
+```powershell
+git clone https://github.com/mattias-aveva/devdb-studio.git
+cd devdb-studio
+dotnet run
+```
 
-The Setup page verifies these and explains how to fix anything missing.
+Open <http://localhost:5190>, check the **Setup** page, then go to **Instances → Create**.
 
-## Run
+## Installation
+
+### Requirements
+
+| | Windows | Linux |
+|---|---|---|
+| Container engine | Docker Engine + Compose plugin, or Podman, installed **inside** a WSL2 distro (any distro, auto-detected) | Docker or Podman on the host; your user must be allowed to use it (`docker` group or rootless Podman) |
+| WSL | WSL2 required | Not used |
+| Runtime | .NET 10 SDK | .NET 10 SDK (self-contained builds need `libicu`) |
+
+The Setup page verifies all of this at runtime.
+
+### Run from source
 
 ```powershell
 dotnet run
 ```
 
-Then open <http://localhost:5190>.
+### Publish a self-contained build
+
+```bash
+dotnet publish -c Release -r linux-x64 --self-contained
+```
+
+Replace the runtime identifier (for example `win-x64`) to target another platform.
+
+## Usage
+
+1. **Setup** (`/setup`): confirm WSL, the distro and the container engine are healthy. Distro and engine default to auto-detect and can be pinned here.
+2. **Instances** (`/instances/create`): choose a DBMS, tag, port, password and database name. Review or edit the generated compose file, then create.
+3. **Query** (`/query`): select an instance and run statements.
+
+   ```sql
+   CREATE TABLE customers (id INT PRIMARY KEY, name VARCHAR(100));
+   INSERT INTO customers VALUES (1, 'Anna');
+   SELECT * FROM customers;
+   ```
+
+   MongoDB: `db.customers.insertOne({ name: "Anna" })`. Redis: `SET greeting "Hello"`.
+4. **Tables** (`/tables`) and **Table data** (`/data`): design tables and fill or clear them.
+5. **Status** (`/status`): watch resources and administer containers.
+6. **Help** (`/help`): per-DBMS defaults, connection addresses and troubleshooting.
+
+Connect from your own tools with `127.0.0.1` (not `localhost`, which may resolve to IPv6): `127.0.0.1,<port>` for SQL Server, `127.0.0.1:<port>` for the others. Containers only listen on loopback.
+
+## Configuration
+
+Settings live in `appsettings.json`. Choices made on the Setup page are saved in `settings.json` next to the instances file and take precedence.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `Wsl:DistroName` | `Auto` | WSL distro hosting the engine. `Auto` picks the first distro with a working engine |
+| `Wsl:ContainerEngine` | `Auto` | `Auto`, `Docker` or `Podman` |
+| `Wsl:CommandTimeoutSeconds` | `10` | Default timeout for `wsl.exe` commands |
+| `Wsl:ColdStartTimeoutSeconds` | `60` | Timeout while WSL is starting |
+| `Wsl:KeepAlive` | `true` | Keep a `wsl.exe` session open so WSL does not shut down and stop your containers |
+| `Storage:InstancesFile` | `%LocalAppData%\DbServeApp\instances.json` | Where instances are persisted |
+| `Security:AllowRemoteAccess` | `false` | Allow non-loopback clients (not recommended) |
+
+Any key can also be set through an environment variable, for example `Storage__InstancesFile`.
+
+## Architecture
+
+```
+Browser ── Blazor Server (Components/Pages, Shared)
+              │
+              ├─ InstanceManager ── IDbmsProvider (one per DBMS) ── ContainerLifecycle
+              ├─ TableDataService / DbInsightService / DockerService
+              ▼
+        IWslDockerRunner → EngineHost → ProcessRunner → wsl.exe → docker | podman
+                                                        (Linux: docker | podman directly)
+```
+
+- `Services/`: engine and WSL plumbing, prerequisite checks, Status page data.
+- `Services/Dbms/`: the provider pattern (`IDbmsProvider`), script generation, output parsers and the JSON instance store.
+- `Components/`: pages, shared components and layout. Styling in `wwwroot/app.css`.
+- State is a JSON file; the app has no database of its own.
+- Arguments are passed as discrete tokens (no shell), secrets via environment variables, scripts via stdin.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for details and [AI.md](AI.md) for conventions.
 
 ## Tests
 
 ```powershell
 dotnet test tests\DevDbStudio.Tests
+dotnet build DevDbStudio.csproj -warnaserror
+dotnet format DevDbStudio.csproj --include <changed files>
 ```
 
-The xUnit suite covers the pure logic (input validation, SQL generation and validation per DBMS, result-output parsing, container engine JSON parsing for Docker and Podman, the instance JSON store and the database insight queries). It needs neither WSL nor a running container engine. Add tests alongside every change.
+The xUnit suite covers validation, script generation, output parsing, engine JSON parsing and the instance store. It needs neither WSL nor a container engine. If the app is running, add `-o "$env:TEMP\dbs-test-out"` to avoid the locked `bin\Debug`.
 
-## Configuration (`appsettings.json`)
+## Troubleshooting
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `Wsl:DistroName` | `Auto` | WSL distro that hosts Docker or Podman. `Auto` picks the first distro with a working engine; a name pins one. The Setup page selector (saved in `settings.json`) overrides it |
-| `Wsl:CommandTimeoutSeconds` | `10` | Default timeout for `wsl.exe` commands |
-| `Wsl:ColdStartTimeoutSeconds` | `60` | Timeout when WSL is starting up |
-| `Wsl:KeepAlive` | `true` | Keeps a `wsl.exe` session open so WSL doesn't shut down and stop the containers while the app runs |
-| `Wsl:ContainerEngine` | `Auto` | `Auto`, `Docker` or `Podman`. A choice saved from the Setup page overrides this |
-| `Storage:InstancesFile` | `%LocalAppData%\DbServeApp\instances.json` | Where instances are persisted |
-| `Security:AllowRemoteAccess` | `false` | Allow non-loopback clients (not recommended) |
+| Problem | Fix |
+|---------|-----|
+| Setup shows WSL or distro missing | Install WSL2 and a distro (`wsl --install`), then recheck |
+| No container engine found | Install Docker Engine (with Compose) or Podman inside the distro / on the host |
+| Permission denied on Linux | Add your user to the `docker` group, or use rootless Podman |
+| Containers stop when the app is idle (Windows) | Keep `Wsl:KeepAlive` enabled |
+| Cannot connect to `localhost:<port>` | Use `127.0.0.1` instead; ports are bound to IPv4 loopback |
+| Instance shows "not found" after switching engine | Containers belong to the engine that created them; switch back |
+| Port already in use | Choose another port between 1024 and 65535 |
+| Table data fails on a `CHECK` constraint | Constraints are unknown to the generator; insert those rows manually |
+| Remote machine cannot open the UI | Intentional. See `Security:AllowRemoteAccess` and the [warning](#security) |
 
-## Architecture
+## Limitations
 
-- `Services/ProcessRunner.cs`, `WslDockerRunner.cs`, `ContainerEngine.cs` – run `wsl.exe -d <distro> --exec <docker|podman> ...` with timeout, cancellation and captured stdout/stderr (no shell quoting). `ContainerEngine` detects/stores which engine to use.
-- `Services/Dbms/` – provider pattern: `IDbmsProvider`, `MssqlProvider`, `PostgresProvider`, `MariaDbProvider` and `MySqlProvider` (both on the shared `MySqlFamilyProvider` base), `InstanceManager` (orchestration, status via `docker ps -a`), `JsonInstanceRepository`, `SqlcmdOutputParser` (`PsqlOutputConverter` and `MySqlOutputConverter` rewrite psql/mariadb output into the same shape), `TableDialect` + `MssqlTableScript` (designer scripts), `MssqlDataScript`/`PostgresDataScript`/`MariaDbDataScript` + `TableDataService` (random population and clearing).
-- `Services/DockerService.cs`, `PrerequisiteCheckService.cs` – Status page data and Setup checks.
-- `Components/Pages`, `Components/Shared` – UI. Styling in `wwwroot/app.css`.
+- Local development only; passwords are stored in plain text.
+- No authentication or multi-user support.
+- Does not install WSL or Docker for you.
+- MongoDB and Redis have no table designer or table data generation.
+- Podman statistics on the Status page are best-effort.
+- Result grids are simple; there is no advanced data editing.
 
-SQL Server containers are created with a named volume at `/var/opt/mssql`, named `dbapp-mssql-<shortId>`, and published on `127.0.0.1:<port>` only. Queries run through `sqlcmd` inside the container. PostgreSQL containers use `docker.io/library/postgres:<tag>` (default `17`), user `postgres`, a named volume (`/var/lib/postgresql/data`, or `/var/lib/postgresql` for 18+) named `dbapp-postgres-<shortId>`, and queries run through `psql` inside the container. MariaDB containers use `docker.io/library/mariadb:<tag>` (default `11`), user `root`, a named volume at `/var/lib/mysql` named `dbapp-mariadb-<shortId>`, and queries run through the `mariadb` client inside the container (a schema in MariaDB is the database itself). MySQL containers use `docker.io/library/mysql:<tag>` (default `8.4`), user `root`, a volume named `dbapp-mysql-<shortId>`, and the `mysql` client; they behave like MariaDB. MongoDB containers use `docker.io/library/mongo:<tag>` (default `8`), root user `root` (authentication database `admin`), a volume at `/data/db` named `dbapp-mongodb-<shortId>`, and queries run as mongosh JavaScript inside the container (output is shown as plain text; the database appears once it holds data). TimescaleDB containers use `docker.io/timescale/timescaledb:<tag>` (default `latest-pg17`), user `postgres`, a volume named `dbapp-timescaledb-<shortId>`, and behave like PostgreSQL. Redis containers use `docker.io/library/redis:<tag>` (default `8`), `--requirepass` with the chosen password, append-only persistence, a volume at `/data` named `dbapp-redis-<shortId>`, and commands run through `redis-cli` inside the container. Containers belong to the engine that created them: after switching between Docker and Podman, instances created with the other engine show as not found until you switch back.
+## Roadmap
 
-## Security notes
+- [ ] Screenshots and a demo GIF in this README
+- [ ] More DBMS providers (see the `add-dbms` skill in `.github/skills`)
+- [ ] Richer result grids
 
-- The app only accepts loopback requests and rejects cross-origin requests by default.
-- SA / `postgres` / `root` passwords are stored in **plain text** in `instances.json` (v1) and are visible in `docker inspect`. Use this for local development only.
-- The Query and Tables pages run arbitrary SQL by design. The Table data page can delete all rows of a table.
-- Connect from Windows with `127.0.0.1,<port>` for SQL Server, `127.0.0.1:<port>` for PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB and Redis (not `localhost`, which may resolve to IPv6).
+## Contributing
 
-## Out of scope
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short: every PR must pass CI, include tests, bump `<Version>` in `DevDbStudio.csproj`, add a [CHANGELOG.md](CHANGELOG.md) entry and update this README when behaviour or configuration changes. Use file-scoped namespaces, async end to end with `CancellationToken`, and no secrets in code or logs.
 
-Authentication, multi-user support, automatic installation of WSL/Docker, and advanced result grids.
+Adding a new database? Implement `IDbmsProvider`, register it in `Program.cs` and follow `.github/skills/add-dbms/SKILL.md`.
+
+## Security
+
+- The app only serves loopback clients and rejects cross-origin requests by default.
+- Instance passwords are stored in plain text in `instances.json` and are visible in `docker inspect`. Use throw-away credentials.
+- The Query and Tables pages run arbitrary SQL by design, and Table data can delete all rows of a table.
+
+To report a vulnerability, please email [mattias.dahlgren@aveva.com](mailto:mattias.dahlgren@aveva.com) privately instead of opening a public issue.
 
 ## Versioning
 
-Semantic versioning (`MAJOR.MINOR.PATCH`). The version is set in `<Version>` in `DevDbStudio.csproj`, shown in the sidebar footer, and each change is logged in [CHANGELOG.md](CHANGELOG.md).
+Semantic versioning. The current version is in `DevDbStudio.csproj`, shown in the sidebar footer and logged in [CHANGELOG.md](CHANGELOG.md).
 
-## Author
+## License
 
-Mattias Dahlgren — [mattias.dahlgren@aveva.com](mailto:mattias.dahlgren@aveva.com)
+No license file is included yet, so all rights are reserved by default. Add a `LICENSE` file (for example MIT) and reference its SPDX identifier here.
+
+## Credits
+
+Built by Mattias Dahlgren. Database logos belong to their respective owners.
