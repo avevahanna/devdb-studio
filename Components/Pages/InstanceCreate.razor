@@ -52,12 +52,17 @@ else if (_result is not null)
         </label>
         <label class="field">@(Provider?.AdminUser == "sa" ? "SA password" : $"Password (user {Provider?.AdminUser})")
             <span class="inline">
-                <input type="@(_showPw ? "text" : "password")" @bind="_password" @bind:event="oninput" autocomplete="new-password" disabled="@_busy" />
+                <input type="@(_showPw ? "text" : "password")" @bind="_password"                 @bind:event="oninput" @bind:after="() => _generated = false" autocomplete="new-password" disabled="@_busy" />
                 <button type="button" class="btn btn-sm" @onclick="() => _showPw = !_showPw">@(_showPw ? "Hide" : "Show")</button>
-            </span>
-        </label>
-        @if (_password.Length > 0)
-        {
+                                <button type="button" class="btn btn-sm" @onclick="GeneratePassword" disabled="@_busy">Regenerate password</button>
+                            </span>
+                        </label>
+                        @if (_generated)
+                        {
+                            <div class="hint hint--ok">A strong password was generated for you. Press "Show" to see it, or "Regenerate password" for a new one.</div>
+                        }
+                        @if (_password.Length > 0)
+                        {
             var errs = InstanceValidation.PasswordErrors(_password);
             @if (errs.Count == 0) { <div class="hint hint--ok">Password meets the requirements.</div> }
             else { <ul class="hint hint--err">@foreach (var e in errs) { <li>@e</li> }</ul> }
@@ -127,7 +132,7 @@ else if (_result is not null)
     private readonly CancellationTokenSource _cts = new();
     private string _dbms = "", _name = "", _password = "", _database = "master", _tag = "2022-latest";
     private int _port = 1433;
-    private bool _busy, _showPw, _showCompose;
+    private bool _busy, _showPw, _showCompose, _generated;
     private string? _edited, _editedKey;
     private ComposeEdit? _lastEdit;
     private IReadOnlyList<string> _errors = [];
@@ -172,6 +177,13 @@ else if (_result is not null)
         _existing = await Manager.GetAllAsync(_cts.Token);
         _dbms = Manager.Providers.FirstOrDefault()?.Key ?? "";
         ApplyDefaults();
+        GeneratePassword();
+    }
+
+    private void GeneratePassword()
+    {
+        _password = InstanceValidation.GeneratePassword();
+        _generated = true;
     }
 
     private void OnDbmsChanged(ChangeEventArgs e)
@@ -204,7 +216,7 @@ else if (_result is not null)
         try
         {
             _result = await Manager.CreateAsync(req, CancellationToken.None);
-            if (_result.Success) _password = "";
+            if (_result.Success) { _password = ""; _generated = false; }
         }
         catch (Exception ex) { _result = InstanceCreateResult.Fail("Unexpected error", ex.Message); }
         finally { _busy = false; }

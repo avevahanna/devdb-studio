@@ -24,6 +24,14 @@ public class InstanceValidationTests
     public void NullPassword_IsRejected() => Assert.NotEmpty(InstanceValidation.PasswordErrors(null));
 
     [Fact]
+    public void GeneratedPasswords_AreValidAndDiffer()
+    {
+        var a = InstanceValidation.GeneratePassword();
+        Assert.Empty(InstanceValidation.PasswordErrors(a));
+        Assert.NotEqual(a, InstanceValidation.GeneratePassword());
+    }
+
+    [Fact]
     public void TooLongPassword_IsRejected() =>
         Assert.Contains(InstanceValidation.PasswordErrors("Aa1!" + new string('x', 130)), e => e.Contains("At most 128"));
 

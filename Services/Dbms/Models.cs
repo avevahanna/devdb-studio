@@ -54,6 +54,27 @@ public static partial class InstanceValidation
         return e;
     }
 
+    /// <summary>Generates a random password that satisfies <see cref="PasswordErrors"/> and is safe in shell, YAML and URLs.</summary>
+    public static string GeneratePassword(int length = 20)
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ", lower = "abcdefghijkmnopqrstuvwxyz", digits = "23456789", symbols = "_-!";
+        var all = upper + lower + digits + symbols;
+        length = Math.Clamp(length, 8, 128);
+        var chars = new List<char>(length)
+        {
+            Pick(upper), Pick(lower), Pick(digits), Pick(symbols)
+        };
+        while (chars.Count < length) chars.Add(Pick(all));
+        for (var i = chars.Count - 1; i > 0; i--)
+        {
+            var j = System.Security.Cryptography.RandomNumberGenerator.GetInt32(i + 1);
+            (chars[i], chars[j]) = (chars[j], chars[i]);
+        }
+        return new string(chars.ToArray());
+
+        static char Pick(string s) => s[System.Security.Cryptography.RandomNumberGenerator.GetInt32(s.Length)];
+    }
+
     public static IReadOnlyList<string> Validate(InstanceCreateRequest r)
     {
         var e = new List<string>();
