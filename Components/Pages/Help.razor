@@ -32,7 +32,7 @@
             <div class="help__facts">
                 <div><strong>Local only</strong><span>Every server is published on <code>127.0.0.1</code>, so only this computer can reach it.</span></div>
                 <div><strong>Persistent</strong><span>Data lives in a named volume and survives stop, start and restart.</span></div>
-                <div><strong>Seven systems</strong><span>SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB and Redis.</span></div>
+                <div><strong>Eight systems</strong><span>SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB, Redis and CouchDB.</span></div>
             </div>
         </section>
 
@@ -50,8 +50,8 @@
                         <li><strong>Name</strong> – a label for you; it is not the database name.</li>
                         <li><strong>Database system</strong> – see <a href="help#dbms">Database systems</a> below.</li>
                         <li><strong>Host port</strong> – the port on <code>127.0.0.1</code>. A free default is suggested; each server needs its own.</li>
-                        <li><strong>Password</strong> – the form shows the requirements as you type.</li>
-                        <li><strong>Database name</strong> – the database created at start (not used for Redis).</li>
+                        <li><strong>Password</strong> – a valid password is generated for you (the form says so); use <strong>Regenerate password</strong> for a new one, or type your own. The form shows the requirements as you type.</li>
+                        <li><strong>Database name</strong> – the database created at start (not used for Redis and CouchDB).</li>
                         <li><strong>Image tag</strong> – the version to run. The default is a good choice; the first start downloads the image, which can take several minutes.</li>
                     </ul>
                     <p>Press <strong>Show compose preview</strong> to see the exact container settings as a compose file. You can edit the port, image tag, password and database there and the form follows; anything else is flagged as not used. Errors and warnings (duplicate name or port, weak password, floating tags, non-loopback port bindings) are listed above the editor.</p>
@@ -59,6 +59,7 @@
                 <li>
                     <h3>Run a query</h3>
                     <p>Open <a href="query">Query</a>, choose the instance, and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd>. Each system has a ready-made sample query.</p>
+                    <p><strong>CouchDB</strong> is queried over HTTP: write one request per line as <code>METHOD /path [JSON body]</code> (GET, PUT, POST, DELETE or HEAD), for example <code>PUT /customers</code> and <code>POST /customers {"name": "Anna"}</code>. A line that does not start with a method continues the previous JSON body, and lines starting with <code>#</code> are comments. Each reply is shown with its HTTP status; 400 and above counts as failed. The Fauxton web UI is at <code>http://127.0.0.1:&lt;port&gt;/_utils</code>.</p>
                 </li>
                 <li>
                     <h3>Connect your own tools</h3>
@@ -76,7 +77,7 @@
                 </article>
                 <article class="help__tile">
                     <h3><a href="query">Query</a></h3>
-                    <p>Run SQL, mongosh or redis-cli commands. Pick the database from the list, view results as a table or as raw output, and download tables as <strong>CSV</strong> or <strong>JSON</strong>. The last 20 queries per instance are kept as history, and you can save named snippets. Both are stored in your browser only.</p>
+                    <p>Run SQL, mongosh or redis-cli commands, or HTTP requests for CouchDB (<code>GET /_all_dbs</code>, one request per line, JSON body after the path). Pick the database from the list, view results as a table or as raw output, and download tables as <strong>CSV</strong> or <strong>JSON</strong>. The last 20 queries per instance are kept as history, and you can save named snippets. Both are stored in your browser only.</p>
                 </article>
                 <article class="help__tile">
                     <h3><a href="tables">Tables</a></h3>
@@ -97,7 +98,7 @@
             </div>
             <div class="callout">
                 <strong>Which pages work with which system?</strong>
-                Query and Status work for all seven. Tables and Table data are for the SQL systems only; for MongoDB and Redis, use the Query page.
+                Query and Status work for all eight. Tables and Table data are for the SQL systems only; for MongoDB, Redis and CouchDB, use the Query page.
             </div>
         </section>
 
@@ -105,7 +106,7 @@
             <h2>Database systems</h2>
             <p class="help__lead">Each system runs from an official image. Defaults are shown below and can be changed when you create the instance.</p>
             <div class="dbms-list">
-                @foreach (var d in Systems)
+                @foreach (var d in Systems.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
                 {
                     <article class="dbms-card" id="@d.Id">
                         <header class="dbms-card__head">
@@ -145,6 +146,7 @@
                     <tr><td>MariaDB, MySQL</td><td><code>127.0.0.1:&lt;port&gt;</code>, user <code>root</code></td></tr>
                     <tr><td>MongoDB</td><td><code>mongodb://root:…@@127.0.0.1:&lt;port&gt;/&lt;db&gt;?authSource=admin</code></td></tr>
                     <tr><td>Redis</td><td><code>redis://:…@@127.0.0.1:&lt;port&gt;/0</code></td></tr>
+                    <tr><td>CouchDB</td><td><code>http://admin:…@@127.0.0.1:&lt;port&gt;/</code> (web UI: <code>/_utils</code>)</td></tr>
                 </tbody>
             </table>
             <p class="muted">The connection string on the instance card is complete and correctly escaped. Prefer it over typing one by hand.</p>
@@ -184,7 +186,7 @@
                     <dd>It was created with another container engine (or, on Windows, another WSL distro). Switch back on the Setup page, or delete the entry.</dd>
                 </div>
                 <div>
-                    <dt>The Query page shows an error in plain text (MongoDB, Redis)</dt>
+                    <dt>The Query page shows an error in plain text (MongoDB, Redis, CouchDB)</dt>
                     <dd>These systems report errors as text. Check the command syntax and that the right database is selected.</dd>
                 </div>
             </dl>
@@ -233,5 +235,10 @@
             "docker.io/library/redis", "8", "6379", "default (password only)", "redis-cli (one command per line)", false,
             "Redis has numbered databases 0–15 instead of named ones, so the create form has no database name. Pick the number on the Query page.",
             "SET greeting \"Hello\"\nGET greeting\nKEYS *"),
+        new("couchdb", "CouchDB", "couchdb.svg", "Document · NoSQL",
+            "A document database with an HTTP/JSON API, built for easy replication. Comes with the Fauxton web UI.",
+            "docker.io/library/couchdb", "3", "5984", "admin", "HTTP requests via curl (METHOD /path [JSON body], one per line)", false,
+            "CouchDB has no database name on create: make one with PUT /name. Lines that do not start with GET, PUT, POST, DELETE or HEAD continue the previous JSON body. Fauxton is at /_utils on the instance port.",
+            "GET /_all_dbs\nPUT /customers\nPOST /customers {\"name\": \"Anna\", \"age\": 30}"),
     ];
 }

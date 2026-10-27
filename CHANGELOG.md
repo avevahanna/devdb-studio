@@ -9,6 +9,10 @@ Versioning follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
 The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it with every change and add an entry here.
 It is shown in the sidebar footer.
 
+## 2.0.0
+- Create instance: the DBMS list is sorted alphabetically (SQL Server stays the preselected default); the Help page lists systems alphabetically, explains the generated password and how to write CouchDB queries.
+- Added **CouchDB** (`docker.io/library/couchdb`, default tag `3`, admin user `admin`, password required, data in a volume). Fauxton is reachable at `/_utils` on the instance port; the system databases `_users` and `_replicator` are created on first start. The Query page takes HTTP requests, one per line (`GET /_all_dbs`, `PUT /customers`, `POST /customers {"name": "Anna"}`; further lines continue the JSON body) that are sent with curl inside the container, with the credentials passed on stdin. Replies are shown with their status code and indented JSON; Status shows database count and size. No table designer or table data. The create form has no database name field for CouchDB.
+
 ## 1.9.0
 - Create instance: a valid random password is generated up front (with a note saying so) and a "Regenerate password" button creates a new one.
 

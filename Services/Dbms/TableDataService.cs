@@ -48,6 +48,11 @@ public sealed class TableDataService(IInstanceManager manager) : ITableDataServi
             var mr = await manager.ExecuteSqlAsync(instanceId, MongoScripts.ListDatabases, ct);
             return mr.IsSuccess ? MongoScripts.ParseDatabases(mr.StdOut) : [];
         }
+        if (await DbmsKeyAsync(instanceId, ct) == CouchDbProvider.ProviderKey)
+        {
+            var cr = await manager.ExecuteSqlAsync(instanceId, CouchDbScripts.ListDatabases, ct);
+            return cr.IsSuccess ? CouchDbScripts.ParseDatabases(cr.StdOut) : [];
+        }
         var key = await DbmsKeyAsync(instanceId, ct);
         var sql = PostgresFamilyProvider.IsFamily(key) ? "SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1;" : key switch
         {

@@ -9,7 +9,7 @@
 │   Instances, InstanceCreate, Query, TableDesigner, TableData, Status, Setup           │
 │        │                                                                              │
 │        ▼  (interfaces, DI singletons registered in Program.cs)                        │
-│  IInstanceManager ──► IDbmsProvider × 7 (mssql, postgres, timescaledb, mariadb, mysql, mongodb, redis)    │
+│  IInstanceManager ──► IDbmsProvider × 8 (mssql, postgres, timescaledb, mariadb, mysql, mongodb, redis, couchdb)    │
 │  ITableDataService     IInstanceRepository ──► instances.json (%LOCALAPPDATA%)        │
 │  IDbInsightService     IDockerService (Status snapshot cache)                         │
 │  IPrerequisiteCheckService                                                            │

@@ -22,7 +22,7 @@ It is for developers who work against local databases. It is **not** a productio
 
 ## Features
 
-- **One-click instances**: create, start, stop and delete SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB and Redis, with copyable connection strings and a compose preview.
+- **One-click instances**: create, start, stop and delete SQL Server, PostgreSQL, TimescaleDB, MariaDB, MySQL, MongoDB, Redis and CouchDB, with copyable connection strings and a compose preview.
 - **Built-in query editor**: run SQL (or mongosh / redis-cli commands) with Ctrl+Enter, browse results as tables, keep history and snippets, export to CSV or JSON.
 - **Table designer**: design a table visually and get a ready-to-run `CREATE TABLE` script for the right SQL dialect.
 - **Realistic test data**: fill tables with 1–10,000 random rows that respect column names, types, keys and unique indexes. Clear them again with one click.
@@ -41,6 +41,7 @@ It is for developers who work against local databases. It is **not** a productio
 | MySQL | `mysql` | ✅ | |
 | MongoDB | `mongosh` | – | JavaScript, plain-text output |
 | Redis | `redis-cli` | – | One command per line |
+| CouchDB | `curl` (HTTP) | – | `METHOD /path [JSON body]` per line; Fauxton at `/_utils` |
 
 ## Quickstart
 
@@ -92,7 +93,7 @@ Replace the runtime identifier (for example `win-x64`) to target another platfor
    SELECT * FROM customers;
    ```
 
-   MongoDB: `db.customers.insertOne({ name: "Anna" })`. Redis: `SET greeting "Hello"`.
+   MongoDB: `db.customers.insertOne({ name: "Anna" })`. Redis: `SET greeting "Hello"`. CouchDB: `PUT /customers` then `POST /customers {"name": "Anna"}`.
 4. **Tables** (`/tables`) and **Table data** (`/data`): design tables and fill or clear them.
 5. **Status** (`/status`): watch resources and administer containers.
 6. **Help** (`/help`): per-DBMS defaults, connection addresses and troubleshooting.
@@ -164,7 +165,7 @@ The xUnit suite covers validation, script generation, output parsing, engine JSO
 - Local development only; passwords are stored in plain text.
 - No authentication or multi-user support.
 - Does not install WSL or Docker for you.
-- MongoDB and Redis have no table designer or table data generation.
+- MongoDB, Redis and CouchDB have no table designer or table data generation.
 - Podman statistics on the Status page are best-effort.
 - Result grids are simple; there is no advanced data editing.
 

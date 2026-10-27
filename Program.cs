@@ -26,6 +26,7 @@ builder.Services.AddSingleton<IDbmsProvider, MySqlProvider>();
 builder.Services.AddSingleton<IDbmsProvider, MongoDbProvider>();
 builder.Services.AddSingleton<IDbmsProvider, TimescaleDbProvider>();
 builder.Services.AddSingleton<IDbmsProvider, RedisProvider>();
+builder.Services.AddSingleton<IDbmsProvider, CouchDbProvider>();
 builder.Services.AddSingleton<IInstanceManager, InstanceManager>();
 builder.Services.AddSingleton<ITableDataService, TableDataService>();
 builder.Services.AddSingleton<IDbInsightService, DbInsightService>();

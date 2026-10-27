@@ -11,7 +11,7 @@
 <div class="page-header">
     <div>
         <h1>Query</h1>
-        <p>Run SQL (or mongosh commands for MongoDB, redis-cli commands for Redis) against a running instance using the DBMS command-line client inside the container.</p>
+        <p>Run SQL (or mongosh commands for MongoDB, redis-cli commands for Redis, HTTP requests for CouchDB) against a running instance using the DBMS command-line client inside the container.</p>
     </div>
 </div>
 
@@ -39,15 +39,18 @@ else
             {
                 <div class="inline-info">
                     <DbmsBadge Key="@si.DbmsKey" DisplayName="@Manager.GetProvider(si.DbmsKey)?.DisplayName" Tag="@si.ImageTag" />
-                    <span class="muted">Default database: @si.DatabaseName · port @si.HostPort</span>
+                    <span class="muted">@(IsCouch ? "" : $"Default database: {si.DatabaseName} · ")port @si.HostPort</span>
                 </div>
             }
-            <label class="field">Database
-                <input type="text" list="query-databases" @bind="_database" disabled="@_busy" />
-                <datalist id="query-databases">
-                    @foreach (var d in _databases) { <option value="@d"></option> }
-                </datalist>
-            </label>
+            @if (!IsCouch)
+            {
+                <label class="field">Database
+                    <input type="text" list="query-databases" @bind="_database" disabled="@_busy" />
+                    <datalist id="query-databases">
+                        @foreach (var d in _databases) { <option value="@d"></option> }
+                    </datalist>
+                </label>
+            }
             <label class="field">@(SelectedProvider?.QueryLanguage ?? "SQL")
                 <textarea rows="10" @bind="_sql" @bind:event="oninput" spellcheck="false" disabled="@_busy" data-run-target="#run-query"></textarea>
             </label>
@@ -165,6 +168,12 @@ else
         "// Find all customers\n" +
         "// db.customers.find().toArray()";
     private const string RedisSample = "SET greeting \"Hello\"\nGET greeting\nKEYS *";
+    private const string CouchSample =
+        "GET /\nGET /_all_dbs\n\n" +
+        "# Create a database and add a document\n" +
+        "# PUT /customers\n" +
+        "# POST /customers {\"name\": \"Anna\", \"age\": 30}\n" +
+        "# GET /customers/_all_docs?include_docs=true";
     private string _sql = MssqlSample;
     private string _database = "";
     private bool _busy, _refreshing, _rendered;
@@ -182,6 +191,7 @@ else
 
     private DbInstance? SelectedInstance => _instances?.FirstOrDefault(i => i.Id == _selected);
     private IDbmsProvider? SelectedProvider => SelectedInstance is null ? null : Manager.GetProvider(SelectedInstance.DbmsKey);
+    private bool IsCouch => SelectedInstance?.DbmsKey == CouchDbProvider.ProviderKey;
     private bool CanRun => SelectedInstance?.Status == InstanceStatus.Running && !string.IsNullOrWhiteSpace(_sql);
 
     private static string Preview(string sql)
@@ -219,7 +229,7 @@ else
     private async Task LoadDatabasesAsync()
     {
         _databases = [];
-        if (SelectedInstance is not { Status: InstanceStatus.Running }) return;
+        if (SelectedInstance is not { Status: InstanceStatus.Running } || IsCouch) return;
         try { _databases = await Data.ListDatabasesAsync(_selected, _cts.Token); }
         catch (OperationCanceledException) { }
     }
@@ -269,13 +279,14 @@ else
     // Swap the untouched sample query when switching between DBMSs.
     private void UseSampleForInstance()
     {
-        if (_sql is MssqlSample or PostgresSample or MariaDbSample or MongoSample or RedisSample)
+        if (_sql is MssqlSample or PostgresSample or MariaDbSample or MongoSample or RedisSample or CouchSample)
             _sql = SelectedInstance?.DbmsKey switch
             {
                 PostgresProvider.ProviderKey or TimescaleDbProvider.ProviderKey => PostgresSample,
                 MariaDbProvider.ProviderKey or MySqlProvider.ProviderKey => MariaDbSample,
                 MongoDbProvider.ProviderKey => MongoSample,
                 RedisProvider.ProviderKey => RedisSample,
+                CouchDbProvider.ProviderKey => CouchSample,
                 _ => MssqlSample,
             };
     }
@@ -312,7 +323,7 @@ else
         _result = null;
         var db = _database.Trim();
         var key = SelectedInstance?.DbmsKey;
-        var sql = db.Length == 0 || db == SelectedInstance?.DatabaseName
+        var sql = db.Length == 0 || db == SelectedInstance?.DatabaseName || key == CouchDbProvider.ProviderKey
             ? _sql
             : key == MongoDbProvider.ProviderKey
                 ? $"db = db.getSiblingDB(\"{db.Replace("\\", "").Replace("\"", "")}\");\n{_sql}"

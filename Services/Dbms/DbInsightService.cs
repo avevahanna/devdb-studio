@@ -45,6 +45,11 @@ public sealed class DbInsightService(IInstanceManager manager) : IDbInsightServi
             var rr = await manager.ExecuteSqlAsync(instance.Id, RedisScripts.Insight, ct);
             return rr.IsSuccess ? RedisScripts.ParseInsight(rr.StdOut) : DbInsight.Fail((rr.StdErr + "\n" + rr.StdOut).Trim());
         }
+        if (instance.DbmsKey == CouchDbProvider.ProviderKey)
+        {
+            var cr = await manager.ExecuteSqlAsync(instance.Id, CouchDbScripts.Insight, ct);
+            return cr.IsSuccess ? CouchDbScripts.ParseInsight(cr.StdOut) : DbInsight.Fail((cr.StdErr + "\n" + cr.StdOut).Trim());
+        }
         var sql = instance.DbmsKey switch
         {
             PostgresProvider.ProviderKey or TimescaleDbProvider.ProviderKey => Postgres,
