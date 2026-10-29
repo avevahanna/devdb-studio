@@ -130,9 +130,7 @@ For Podman-managed WSL distros (`podman-machine-*`), DevDb Studio uses the machi
 
 New instances each retain a private bridge network named `<container-name>-network`, even when application container access is off, so access can be toggled safely on Docker and Podman. Disabling access detaches only that instance from `devdb-network` and removes its application container connection string; active application-container connections are interrupted. Host access remains available. If an engine requires the container to be running for network changes, start it and retry.
 
-Older containers are **not migrated**, including Podman containers using `pasta`, and do not have the new toggle. The former global setting is ignored. Deleting a new instance removes its private network but never deletes `devdb-network`. If you already have a network named `devdb-network`, it must use the bridge driver with container DNS enabled. Full application setup instructions are available under **Help → Application container access**, linked as **Connecting from application containers** beside each checkbox.
-
-Containers and networks from the earlier `shared-db` implementation are not renamed or migrated automatically. Use newly created instances and update application Compose files to use `devdb-network`.
+Application container access is available only for newly created instances. Existing instances are left unchanged and do not have the new toggle. Deleting a new instance removes its private network but never deletes `devdb-network`. If you already have a network named `devdb-network`, it must use the bridge driver with container DNS enabled. Full application setup instructions are available under **Help → Application container access**, linked as **Connecting from application containers** beside each checkbox.
 
 ## Configuration
 

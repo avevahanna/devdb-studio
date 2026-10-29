@@ -41,7 +41,7 @@ public class SharedContainerNetworkTests
     {
         var runner = new Runner(a => a[1] switch
         {
-            "ls" => Ok(exists ? "other\ndevdb-network\n" : "devdb-network-other\nshared-db\n"),
+            "ls" => Ok(exists ? "other\ndevdb-network\n" : "devdb-network-other\nunrelated-network\n"),
             "inspect" => Ok(inspection),
             _ => Ok()
         });
@@ -49,7 +49,7 @@ public class SharedContainerNetworkTests
         Assert.True(result.Success, result.Message);
         Assert.Equal(exists ? 0 : 1, runner.Calls.Count(c => c.SequenceEqual(["network", "create", "--driver", "bridge", "devdb-network"])));
         Assert.Contains(runner.Calls, c => c.SequenceEqual(["network", "inspect", "devdb-network"]));
-        Assert.DoesNotContain(runner.Calls, c => c.Contains("shared-db"));
+        Assert.DoesNotContain(runner.Calls, c => c.Contains("unrelated-network"));
     }
 
     [Theory]
@@ -113,13 +113,11 @@ public class SharedContainerNetworkTests
         var args = provider.BuildRunArgs(shared, Guid.Empty, "dbapp-test", "dbapp-test-data").ToArray();
         Assert.Equal("dbapp-test-network", args[Array.IndexOf(args, "--network") + 1]);
         Assert.Contains("devdb-network", args);
-        Assert.DoesNotContain("shared-db", args);
         Assert.Equal($"127.0.0.1:12345:{provider.DefaultPort}", args[Array.IndexOf(args, "-p") + 1]);
 
         var yaml = ComposePreview.Render(provider, shared, true);
         Assert.Contains("      - \"devdb-network\"", yaml);
         Assert.Contains("    name: \"devdb-network\"", yaml);
-        Assert.DoesNotContain("shared-db", yaml);
         Assert.Contains($"      - \"dbapp-{key}-xxxxxxxx-network\"", yaml);
         Assert.Contains("    external: true", yaml);
         Assert.Contains(provider.ImageName, yaml);
