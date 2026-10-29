@@ -9,7 +9,7 @@ public interface ISharedContainerNetwork
     Task<InstanceActionResult> SetMembershipAsync(DbInstance instance, bool enabled, CancellationToken ct = default);
 }
 
-public sealed class SharedContainerNetwork(IWslDockerRunner docker, ILogger<SharedContainerNetwork> log) : ISharedContainerNetwork
+public sealed class SharedContainerNetwork(IWslDockerRunner docker, ILogger<SharedContainerNetwork> log, IContainerEngine engine) : ISharedContainerNetwork
 {
     public const string NetworkName = "devdb-network";
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -56,6 +56,11 @@ public sealed class SharedContainerNetwork(IWslDockerRunner docker, ILogger<Shar
         await _gate.WaitAsync(ct);
         try
         {
+            if (await engine.GetExecutableAsync(ct) == "docker")
+            {
+                var compatible = await DockerNetworkCompatibility.CheckAsync(docker, ct);
+                if (!compatible.Success) return Failure(compatible.Message, compatible.StdErr);
+            }
             var networks = await docker.RunAsync(["network", "ls", "--format", "{{.Name}}"], ct: ct);
             if (networks.ExitCode != 0 || networks.TimedOut)
                 return Failure("Could not list container networks. Check the container engine in Setup and try again.", networks);
@@ -91,9 +96,12 @@ public sealed class SharedContainerNetwork(IWslDockerRunner docker, ILogger<Shar
         finally { _gate.Release(); }
     }
 
-    private InstanceActionResult Failure(string message, ProcessResult? result = null)
+    private InstanceActionResult Failure(string message, ProcessResult? result = null) =>
+        Failure(message, result is null ? "" : result.StdErr + result.StdOut);
+
+    private InstanceActionResult Failure(string message, string detail)
     {
         log.LogWarning("Application container network setup failed: {Message}", message);
-        return new(false, message, result is null ? "" : result.StdErr + result.StdOut);
+        return new(false, message, detail);
     }
 }

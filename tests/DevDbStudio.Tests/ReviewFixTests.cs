@@ -174,7 +174,7 @@ public class ReviewFixTests
         var repo = new MemoryRepo(instance);
         var runner = new FakeRunner(_ => Ok());
         var manager = new InstanceManager(repo, [new RedisProvider(runner, NullLogger<RedisProvider>.Instance)], runner, NullLogger<InstanceManager>.Instance,
-            new SharedContainerNetwork(runner, NullLogger<SharedContainerNetwork>.Instance));
+            new SharedContainerNetwork(runner, NullLogger<SharedContainerNetwork>.Instance, new TestContainerEngine()));
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 

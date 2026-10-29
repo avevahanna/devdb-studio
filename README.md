@@ -104,6 +104,8 @@ Connect from your own tools with `127.0.0.1` (not `localhost`, which may resolve
 
 Choose **Application container access** on **Create instance** for each database your application containers need. It defaults to off. The instance card lets you enable or disable access later without recreating the container or changing its data or loopback access. DevDb Studio creates/checks the DNS-enabled `devdb-network` bridge when needed. There is no global setting.
 
+With Docker, application container access requires **Docker CLI and Engine 25.0+**, using **API 1.44+**, because initial creation connects to two networks. Setup reports compatibility, and the same check runs before application network setup or enabling access. Upgrade Docker (or Docker Desktop) and remove any `DOCKER_API_VERSION` override below 1.44 if the check fails. Loopback-only instances remain available with older Docker versions; disabling application container access is not blocked. Podman is not subject to this Docker version requirement.
+
 On **Instances**, copy **Host connection (loopback)** for host applications or **Application container connection (devdb-network)** for applications on that network. The latter appears only when access is enabled and uses the unique container name and the DBMS's internal port, not its published host port. Multiple MariaDB instances can therefore all use internal port 3306 without conflicts.
 
 Join application services to the external network in each Compose project:

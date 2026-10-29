@@ -10,6 +10,7 @@ The version lives in one place: `<Version>` in `DevDbStudio.csproj`. Bump it wit
 It is shown in the sidebar footer.
 
 ## Unreleased
+- Setup checks Docker CLI/Engine 25.0+ and API 1.44+ for application container access. Unsupported or unreadable versions are rejected before creating application networks or enabling access; loopback-only instances and disabling access remain available.
 - Added optional per-instance **Application container access** through the DNS-enabled `devdb-network` bridge. Newly created instances support enabling/disabling access after creation while preserving data and loopback access through separate private networks.
 - Instance cards provide separate reveal/copy controls for host and application container connection strings, using each database's container name and internal port. Compose previews include the networks.
 - Help documents application Compose configuration, linked beside each access setting. Existing containers and networks are not migrated automatically.

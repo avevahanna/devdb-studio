@@ -19,7 +19,7 @@ public class SharedContainerNetworkTests
     }
 
     private static ProcessResult Ok(string output = "") => new(0, output, "", false);
-    private static SharedContainerNetwork Network(IWslDockerRunner runner) => new(runner, NullLogger<SharedContainerNetwork>.Instance);
+    private static SharedContainerNetwork Network(IWslDockerRunner runner) => new(runner, NullLogger<SharedContainerNetwork>.Instance, new TestContainerEngine());
 
     private static IDbmsProvider Provider(string key, IWslDockerRunner runner) => key switch
     {

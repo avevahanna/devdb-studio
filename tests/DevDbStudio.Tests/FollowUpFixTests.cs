@@ -159,7 +159,7 @@ public class FollowUpFixTests
         var repo = new TrackingRepo(inst);
         var runner = new AsyncRunner(a => Task.FromResult(Ok($"{inst.ContainerName}|exited")));
         var mgr = new InstanceManager(repo, [new RedisProvider(runner, NullLogger<RedisProvider>.Instance)], runner, NullLogger<InstanceManager>.Instance,
-            new SharedContainerNetwork(runner, NullLogger<SharedContainerNetwork>.Instance));
+            new SharedContainerNetwork(runner, NullLogger<SharedContainerNetwork>.Instance, new TestContainerEngine()));
 
         var res = await mgr.RefreshStatusAsync();
 
@@ -180,7 +180,7 @@ public class FollowUpFixTests
             _ => Task.FromResult(Ok()),
         });
         var mgr = new InstanceManager(repo, [new RedisProvider(runner, NullLogger<RedisProvider>.Instance)], runner, NullLogger<InstanceManager>.Instance,
-            new SharedContainerNetwork(runner, NullLogger<SharedContainerNetwork>.Instance));
+            new SharedContainerNetwork(runner, NullLogger<SharedContainerNetwork>.Instance, new TestContainerEngine()));
 
         var start = mgr.StartAsync(inst.Id);
         await Task.Delay(100); // let Start take the per-instance gate and block in "docker start"
